@@ -9,6 +9,11 @@ siftfast.m - matlab/octave mex file that uses sift_fast, just do [frames,descr]=
            setenv('LD_LIBRARY_PATH',[getenv('LD_LIBRARY_PATH') ':' libsift_directory]);
            
 
+Comparisons with other SIFT Code
+--------------------------------
+
+the default setting of siftfast produce the same output as Lowe's free sift program. On a quad-core machine with OpenMP, siftfast goes about 6x faster than lowe's sift program.
+
 OpenMP
 ------
 
