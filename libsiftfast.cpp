@@ -33,8 +33,12 @@
 
 #if defined(__SSE3__)
 #include <pmmintrin.h>
+#elif defined(__SSE2__)
+#include <emmintrin.h>
 #elif defined(__SSE__)
 #include <xmmintrin.h>
+#else
+#warning "Not compiling with SSE extenions"
 #endif
 
 #ifdef _OPENMP

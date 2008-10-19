@@ -1,13 +1,9 @@
-#all: build/Makefile
-#	cd build && make -s
-#build/Makefile:
-
 all:
 	@mkdir -p build
 	@if [ $(prefix) ]; then \
 		cd build && cmake -DCMAKE_INSTALL_PREFIX=$(prefix) -DCMAKE_BUILD_TYPE=Release ..; \
 	else \
-		cd build && cmake -DCMAKE_BUILD_TYPE=Release ..; \
+		cd build && cmake -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release ..; \
 	fi
 	cd build && make
 
