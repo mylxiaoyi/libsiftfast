@@ -27,7 +27,7 @@ using namespace std;
 #include "profiler.h"
 #endif
 
-#include "sift_fast.h"
+#include "siftfast.h"
 
 typedef unsigned long long u64;
 

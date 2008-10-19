@@ -1,6 +1,9 @@
-SIFT code: author zerofrog(@gmail.com)
+libsiftfast: author zerofrog(@gmail.com)
+----------------------------------------
+Various utilities to compute the SIFT features of a greyscale image. Packages offered:
 
-siftfast - really fast SIFT implementation of sift_org using SSE and OpenMP (also fixes some bugs from lowe's code, so outputs will be similar, but not exact).
+libsiftfast.so - main library that contains the sift code
+siftfast - really fast SIFT implementation using SSE and OpenMP (also fixes some bugs from lowe's code, so outputs are similar, but not exact).
 
 siftfast.m - matlab/octave mex file that uses sift_fast, just do [frames,descr]=sift_mex(grayscale_image);
            frames is a 4xN matrix of [X,Y,scale,orientation],
@@ -9,27 +12,22 @@ siftfast.m - matlab/octave mex file that uses sift_fast, just do [frames,descr]=
            setenv('LD_LIBRARY_PATH',[getenv('LD_LIBRARY_PATH') ':' libsift_directory]);
            
 
+SIFT is based on
+David G. Lowe, "Distinctive image features from scale-invariant keypoints,
+"International Journal of Computer Vision, 60, 2 (2004), pp. 91-110.
+
+Using the Octave/Matlab mex files
+---------------------------------
+
+the octave and matlab mex files are installed in $prefix/share/siftfast/octave and $prefix/share/siftfast/matlab where $prefix is the installation directory you've provided (via CMAKE_INSTALL_PREFIX). The default value for $prefix is /usr/local
+
+Add the path via addpath('$prefix/share/siftfast/matlab'), and then in octave/matlab type:
+
+> help siftfast
+
+this should give a help file on how to use it.
+
 Comparisons with other SIFT Code
 --------------------------------
 
-the default setting of siftfast produce the same output as Lowe's free sift program. On a quad-core machine with OpenMP, siftfast goes about 6x faster than lowe's sift program.
-
-OpenMP
-------
-
-CMake checks if it can use openmp automatically. You can force usage or disabling of it by the --enable-openmp and --disable-openmp flags.
-
-Sometimes siftfast might fail to compile with OpenMP because libgomp.so is not setup properly to be used by shared objects. Checkout this tutorial here on how to compile the correct libgomp:
-
-http://openrave.programmingvision.com/index.php?title=Misc:MatlabOpenMP
-
-
-Matlab
-------
-For Linux, when compiling a matlab mex file,  you might get a message saying the gcc version is too high. If so, matlab will have a hard time locating the correct libstdc++.so file. In this case, go into /usr/local/share/sys/os/glnx86
-
-and make libgcc_s and libstdc++ point to the /usr/lib versions
-sudo mv libgcc_s.so.1 libgcc_s.so.1.back
-sudo ln -s /lib/libgcc_s.so.1 libgcc_s.so.1
-sudo rm libstdc++.so.6 (this was already a symbolic link)
-sudo ln -s /usr/lib/libstdc++.so.6.0.9 libstdc++.so.6
+The default setting of siftfast produce the same output as Lowe's free sift program. On a quad-core Core2Duo machine with OpenMP, siftfast goes about 6x faster than lowe's sift program for 640x480 images.
