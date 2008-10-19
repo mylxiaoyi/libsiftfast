@@ -16,13 +16,21 @@ endif()
 message(STATUS "Using SSE2 extensions")
 
 
-add_library(libsiftfast SHARED libsiftfast.cpp)
-target_link_libraries(libsiftfast m stdc++)
+if( MSVC )
+  add_library(libsiftfast STATIC libsiftfast.cpp)
+else()
+  add_library(libsiftfast SHARED libsiftfast.cpp)
+endif()
+
+if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
+  target_link_libraries(libsiftfast m stdc++)
+endif()
+
 set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast)
 
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "libsiftfast install prefix" FORCE )
-endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT) 
+endif()
 
 message(STATUS "installing to ${CMAKE_INSTALL_PREFIX}")
 
@@ -38,9 +46,10 @@ if( NOT DEFINED USE_OPENMP OR USE_OPENMP  )
   if( HAVE_OMP_H )
     message(STATUS "Using OpenMP")
 
-    # check if can compile and use openmp
     if( WIN32 )
+      add_definitions("/openmp")
     else()
+      # check if can compile and use openmp
       if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
         add_definitions(" -fopenmp ")
         target_link_libraries(siftfast gomp)
@@ -58,7 +67,11 @@ set(MATLAB MATLAB-NOTFOUND)
 FIND_PROGRAM(MATLAB NAME "mex" PATHS )
 
 if( CMAKE_COMPILER_IS_GNUC OR CMAKE_COMPILER_IS_GNUCXX )
-  set(MEX_CXXFLAGS "${OPENMP_LFLAGS} -Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
+  if( WIN32 )
+    set(MEX_CXXFLAGS "${OPENMP_LFLAGS}")
+  else()
+    set(MEX_CXXFLAGS "${OPENMP_LFLAGS} -lsiftfast -Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
+  endif()
 else()
   set(MEX_CXXFLAGS)
 endif()
@@ -82,7 +95,7 @@ if(MATLAB)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${MATLAB_MEX}
     COMMAND mex
-    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp -llapack -L${CMAKE_CURRENT_BINARY_DIR} -lsiftfast ${MEX_CXXFLAGS} -outdir ${CMAKE_CURRENT_BINARY_DIR} -o ${MATLAB_MEX}
+    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp -llapack -L${CMAKE_CURRENT_BINARY_DIR} ${MEX_CXXFLAGS} -outdir ${CMAKE_CURRENT_BINARY_DIR} -o ${MATLAB_MEX}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast
   )
   add_custom_target(siftfast_matlab ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${MATLAB_MEX})

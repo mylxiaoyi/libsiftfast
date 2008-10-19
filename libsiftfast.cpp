@@ -29,7 +29,13 @@
 #include <list>
 
 #include <sys/timeb.h>    // ftime(), struct timeb
+
+#ifndef _MSC_VER
 #include <sys/time.h>
+#else
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#endif
 
 #if defined(__SSE3__)
 #include <pmmintrin.h>
@@ -38,13 +44,17 @@
 #elif defined(__SSE__)
 #include <xmmintrin.h>
 #else
+#ifndef _MSC_VER
 #warning "Not compiling with SSE extenions"
+#endif
 #endif
 
 #ifdef _OPENMP
 #include <omp.h>
 #else
+#ifndef _MSC_VER
 #warning "OpenMP not enabled. Use -fopenmp (>=gcc-4.2) or -openmp (icc) for speed enhancements on SMP machines."
+#endif
 #endif
 
 using namespace std;
@@ -112,9 +122,16 @@ inline vec_float4 atan2f4( vec_float4 y, vec_float4 x );
 
 inline u64 GetMicroTime()
 {
+#ifdef _WIN32
+    LARGE_INTEGER count, freq;
+    QueryPerformanceCounter(&count);
+    QueryPerformanceFrequency(&freq);
+    return (count.QuadPart * 1000000) / freq.QuadPart;
+#else
     struct timeval t;
     gettimeofday(&t, NULL);
     return (u64)t.tv_sec*1000000+t.tv_usec;
+#endif
 }
 
 // aligned malloc and free
@@ -138,15 +155,19 @@ void sift_aligned_free(void* pmem)
     }
 }
 
+#if defined(_MSC_VER)
+#define SIFT_ALIGNED16(x) __declspec(align(16)) x
+#else
 #define SIFT_ALIGNED16(x) x __attribute((aligned(16)))
+#endif
 
 extern "C" {
 Image CreateImage(int rows, int cols);
 Image CreateImageFromMatlabData(double* pdata, int rows, int cols);
 void DestroyAllImages();
 Keypoint GetKeypoints(Image porgimage);
-Image DoubleSize(Image p);
-Image CopyImage(Image p);
+Image SiftDoubleSize(Image p);
+Image SiftCopyImage(Image p);
 Image HalfImageSize(Image curimage);
 Keypoint OctaveKeypoints(Image pimage, Image* phalfimage, float fscale, Keypoint prevkeypts);
 void SubtractImage(Image imgdst, Image img0, Image img1);
@@ -249,7 +270,7 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
 #else
     for(int i = 0; i < rows; ++i, pixels+=image->stride) {
         for(int j = 0; j < cols; ++j)
-            pixels[j] = pdata[i+j*rows];
+            pixels[j] = (float)pdata[i+j*rows];
     }
 #endif
 
@@ -274,11 +295,11 @@ Keypoint GetKeypoints(Image porgimage)
     Keypoint keypts = 0;
 
     if( DoubleImSize ) {
-        pimage = DoubleSize(porgimage);
+        pimage = SiftDoubleSize(porgimage);
         fscale = 0.5f;
     }
     else
-        pimage = CopyImage(porgimage);
+        pimage = SiftCopyImage(porgimage);
     
     float fnewscale = 1.0f;
     if( !DoubleImSize )
@@ -314,7 +335,7 @@ Keypoint GetKeypoints(Image porgimage)
     return keypts;
 }
 
-Image DoubleSize(Image im)
+Image SiftDoubleSize(Image im)
 {
     int rows = im->rows, cols = im->cols;
     int newrows = 2*rows-2, newcols = 2*cols-2;
@@ -333,7 +354,7 @@ Image DoubleSize(Image im)
     return newim;
 }
 
-Image CopyImage(Image im)
+Image SiftCopyImage(Image im)
 {
     DVSTARTPROFILE();
     Image newim = CreateImage(im->rows,im->cols);

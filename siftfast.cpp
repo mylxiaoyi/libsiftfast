@@ -20,7 +20,7 @@
 #include <iostream>
 
 #include <sys/timeb.h>    // ftime(), struct timeb
-#include <sys/time.h>
+
 #include <assert.h>
 
 using namespace std;
@@ -29,11 +29,17 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-inline u64 GetMicroTime()
+inline u32 timeGetTime()
 {
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    return (u64)t.tv_sec*1000000+t.tv_usec;
+#ifdef _WIN32
+    _timeb t;
+    _ftime(&t);
+#else
+    timeb t;
+    ftime(&t);
+#endif
+
+    return (u32)(t.time*1000+t.millitm);
 }
 
 // code from david lowe
@@ -99,9 +105,9 @@ int main(int argc, char **argv)
 
     cerr << "Finding keypoints..." << endl;
     {
-        u64 basetime = GetMicroTime();
+        u32 basetime = timeGetTime();
         keypts = GetKeypoints(image);
-        fproctime = (GetMicroTime()-basetime)*0.000001f;
+        fproctime = (timeGetTime()-basetime)*0.001f;
     }
 
     // write the keys to the output
