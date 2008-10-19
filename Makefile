@@ -4,7 +4,11 @@
 
 all:
 	@mkdir -p build
-	cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+	@if [ $(prefix) ]; then \
+		cd build && cmake -DCMAKE_INSTALL_PREFIX=$(prefix) -DCMAKE_BUILD_TYPE=Release ..; \
+	else \
+		cd build && cmake -DCMAKE_BUILD_TYPE=Release ..; \
+	fi
 	cd build && make
 
 install:
