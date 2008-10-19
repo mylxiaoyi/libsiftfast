@@ -29,11 +29,6 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-Image ReadPGMFile(const char *filename);
-Image ReadPGM(FILE *fp);
-void WritePGM(const char* filename, Image image);
-void SkipComments(FILE *fp);
-
 inline u64 GetMicroTime()
 {
     struct timeval t;
@@ -41,18 +36,21 @@ inline u64 GetMicroTime()
     return (u64)t.tv_sec*1000000+t.tv_usec;
 }
 
-Image ReadPGMFile(const char *filename)
+// code from david lowe
+void SkipComments(FILE *fp)
 {
-    FILE *file;
-    file = fopen (filename, "rb");
-    if (! file) {
-        cerr << "Could not open file: " << filename << endl;
-        exit(1);
-    }
+    int ch;
 
-    return ReadPGM(file);
+    fscanf(fp," "); // Skip white space.
+    while ((ch = fgetc(fp)) == '#') {
+        while ((ch = fgetc(fp)) != '\n'  &&  ch != EOF)
+            ;
+        fscanf(fp," ");
+    }
+    ungetc(ch, fp); // Replace last character read.
 }
 
+// code from david lowe
 Image ReadPGM(FILE *fp)
 {
     int char1, char2, width, height, max, c1, c2, c3, r, c;
@@ -91,39 +89,6 @@ Image ReadPGM(FILE *fp)
         //image->next = nextimage;
     }
     return image;
-}
-
-void WritePGM(const char* filename, Image image)
-{
-    int r, c, val;
-
-    FILE* fp = fopen(filename,"wb");
-    fprintf(fp, "P5\n%d %d\n255\n", image->cols, image->rows);
-
-    int rows = image->rows, cols = image->cols, stride = image->stride;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < cols; c++) {
-            val = (int) (255.0 * image->pixels[r*stride+c]);
-            if( val > 255 ) val = 255;
-            else if( val < 0 ) val = 0;
-            fputc(val, fp);
-        }
-    }
-
-    fclose(fp);
-}
-
-void SkipComments(FILE *fp)
-{
-    int ch;
-
-    fscanf(fp," "); // Skip white space.
-    while ((ch = fgetc(fp)) == '#') {
-        while ((ch = fgetc(fp)) != '\n'  &&  ch != EOF)
-            ;
-        fscanf(fp," ");
-    }
-    ungetc(ch, fp); // Replace last character read.
 }
 
 int main(int argc, char **argv)

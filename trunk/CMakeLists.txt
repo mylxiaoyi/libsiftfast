@@ -2,38 +2,53 @@ cmake_minimum_required (VERSION 2.6)
 project (libsiftfast)
 set( CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE )
 
-# check for OpenMP
-include(CheckIncludeFiles)
-#CHECK_INCLUDE_FILES(omp.h HAVE_OMP_H)
-# Output test results to config.h
-#CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_SOURCE_DIR}/config.h)
+if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g")
+  add_definitions(" -Wall -fPIC ")
+endif()
 
 # check for SSE extensions
-# SET(CMAKE_CXX_FLAGS
-# if(LINUX OR DARWIN)
-#   set_source_files_properties(
-#       libsiftfast.cpp
-#       PROPERTIES COMPILE_FLAGS "-msse2 -mfpmath=sse"
-#       )
-# endif(LINUX OR DARWIN)
+if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
+  add_definitions( "-msse2 -mfpmath=sse" )
+elseif(MSVC)
+  add_definitions( "/arch:SSE2 /fp:fast" )
+endif()
+message(STATUS "Using SSE2 extensions")
+
 
 add_library(libsiftfast SHARED libsiftfast.cpp)
 target_link_libraries(libsiftfast m stdc++)
 set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast)
 
-if( UNIX OR LINUX OR DARWIN )
-    add_definitions(" -Wall -fPIC ")
-endif()
-
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "libsiftfast install prefix" FORCE )
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT) 
 
-message(STATUS "CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "installing to ${CMAKE_INSTALL_PREFIX}")
 
-add_executable(siftfast siftfast.cpp)
-target_link_libraries(siftfast libsiftfast)
+# compile without depending on libsiftfast
+add_executable(siftfast libsiftfast.cpp siftfast.cpp)
+#target_link_libraries(siftfast libsiftfast)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+# check for OpenMP
+if( NOT DEFINED USE_OPENMP OR USE_OPENMP  )
+  include(CheckIncludeFile)
+  CHECK_INCLUDE_FILE(omp.h HAVE_OMP_H)
+  if( HAVE_OMP_H )
+    message(STATUS "Using OpenMP")
+
+    # check if can compile and use openmp
+    if( WIN32 )
+    else()
+      if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
+        add_definitions(" -fopenmp ")
+        target_link_libraries(siftfast gomp)
+        set(OPENMP_LFLAGS "-lgomp")
+      endif()
+    endif()
+  endif()
+endif()
 
 #
 # generate mex files
@@ -42,18 +57,18 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 set(MATLAB MATLAB-NOTFOUND)
 FIND_PROGRAM(MATLAB NAME "mex" PATHS )
 
-if(UNIX)
-  set(MEX_CXXFLAGS "-Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
+if( CMAKE_COMPILER_IS_GNUC OR CMAKE_COMPILER_IS_GNUCXX )
+  set(MEX_CXXFLAGS "${OPENMP_LFLAGS} -Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
 else()
   set(MEX_CXXFLAGS)
-endif(UNIX)
+endif()
 
 if(MATLAB)
 
-  if( UNIX OR LINUX )
-    set(MEXEXT "mexglx")
-  elseif( DARWIN OR APPLE )
+  if( DARWIN OR APPLE )
     set(MEXEXT "mexmac")
+  elseif( UNIX )
+    set(MEXEXT "mexglx")
   elseif( WIN64 )
     set(MEXEXT "mexw64")
   elseif( WIN32 OR CYGWIN OR WINDOWS )
@@ -83,7 +98,6 @@ FIND_PROGRAM(OCTAVE NAME "mkoctfile" PATHS)
 if(OCTAVE)
 
   set(OCTAVE_MEX ${CMAKE_CURRENT_BINARY_DIR}/siftfast.mex)
-  message(STATUS "${OCTAVE_MEX}")
 
   add_custom_command(
     OUTPUT ${OCTAVE_MEX}
