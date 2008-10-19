@@ -16,8 +16,6 @@
 #include "mex.h"
 #include <stdio.h>
 #include <string.h>
-#include <sys/timeb.h>    // ftime(), struct timeb
-#include <sys/time.h>
 
 #include <list>
 #include <string>
@@ -30,13 +28,6 @@ using namespace std;
 #include "siftfast.h"
 
 typedef unsigned long long u64;
-
-inline u64 GetMicroTime()
-{
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    return (u64)t.tv_sec*1000000+t.tv_usec;
-}
 
 // [frames,descr]=sift_mex(I,...)
 // takes an image and outputs frames and a descriptor
