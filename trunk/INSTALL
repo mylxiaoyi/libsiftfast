@@ -6,12 +6,15 @@ The compilation system uses a cross-platform tool called cmake.
 Linux/Mac OSX Instructions:
 ---------------------------
 
-Just type "make". This will set the project to be installed in /usr/local. There are two ways to change the install directory. The first one is to use "ccmake build" after having called make. This will let you change the variables. The second manual way is:
+Just type
 
-> mkdir build
-> cd build
-> cmake -DCMAKE_INSTALL_PREFIX=/my/dir ..
-> make install
+> make
+
+This will set the project to be installed in /usr/local. To change the install directory type
+
+> make prefix=/my/new/dir
+
+To change other environment variables that cmake uses after initially making, type "cmake build"
 
 OpenMP:
 
