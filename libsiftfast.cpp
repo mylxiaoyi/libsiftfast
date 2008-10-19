@@ -137,14 +137,9 @@ void sift_aligned_free(void* pmem)
 #define SIFT_ALIGNED16(x) x __attribute((aligned(16)))
 
 extern "C" {
-void FatalError(const char *fmt, ...);
 Image CreateImage(int rows, int cols);
 Image CreateImageFromMatlabData(double* pdata, int rows, int cols);
 void DestroyAllImages();
-Image ReadPGMFile(const char *filename);
-Image ReadPGM(FILE *fp);
-void WritePGM(const char* filename, Image image);
-void SkipComments(FILE *fp);
 Keypoint GetKeypoints(Image porgimage);
 Image DoubleSize(Image p);
 Image CopyImage(Image p);
@@ -182,18 +177,6 @@ void AddSample(float* fdesc, Keypoint pkeypt, Image imgrad, Image imorient, int 
 void PlaceInIndex(float* fdesc, float fgrad, float forient, float fnewrow, float fnewcol);
 void FreeKeypoints(Keypoint keypt);
 void DestroyAllResources();
-}
-
-void FatalError(const char *fmt, ...)
-{
-    va_list args;
-
-    va_start(args, fmt);
-    fprintf(stderr, "Error: ");
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr,"\n");
-    va_end(args);
-    exit(1);
 }
 
 static list<Image> s_listImages;
@@ -267,88 +250,6 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
 #endif
 
     return image;
-}
-
-Image ReadPGMFile(const char *filename)
-{
-    FILE *file;
-    file = fopen (filename, "rb");
-    if (! file)
-        FatalError("Could not open file: %s", filename);
-
-    return ReadPGM(file);
-}
-
-Image ReadPGM(FILE *fp)
-{
-    int char1, char2, width, height, max, c1, c2, c3, r, c;
-    Image image, nextimage;
-
-    char1 = fgetc(fp);
-    char2 = fgetc(fp);
-    SkipComments(fp);
-    c1 = fscanf(fp, "%d", &width);
-    SkipComments(fp);
-    c2 = fscanf(fp, "%d", &height);
-    SkipComments(fp);
-    c3 = fscanf(fp, "%d", &max);
-
-    if (char1 != 'P' || char2 != '5' || c1 != 1 || c2 != 1 || c3 != 1 ||
-        max > 255)
-        FatalError("Input is not a standard raw 8-bit PGM file.\n"
-                   "Use xv or pnmdepth to convert file to 8-bit PGM format.\n");
-
-    fgetc(fp);  // Discard exactly one byte after header.
-
-    // Create floating point image with pixels in range [0,1].
-    image = CreateImage(height, width);
-    for (r = 0; r < height; r++)
-        for (c = 0; c < width; c++)
-            image->pixels[r*image->stride+c] = ((float) fgetc(fp)) / 255.0;
-
-    //Check if there is another image in this file, as the latest PGM
-    // standard allows for multiple images.
-    SkipComments(fp);
-    if (getc(fp) == 'P') {
-        cerr << "ignoring other images" << endl;
-        ungetc('P', fp);
-        nextimage = ReadPGM(fp);
-        //image->next = nextimage;
-    }
-    return image;
-}
-
-void WritePGM(const char* filename, Image image)
-{
-    int r, c, val;
-
-    FILE* fp = fopen(filename,"wb");
-    fprintf(fp, "P5\n%d %d\n255\n", image->cols, image->rows);
-
-    int rows = image->rows, cols = image->cols, stride = image->stride;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < cols; c++) {
-            val = (int) (255.0 * image->pixels[r*stride+c]);
-            if( val > 255 ) val = 255;
-            else if( val < 0 ) val = 0;
-            fputc(val, fp);
-        }
-    }
-
-    fclose(fp);
-}
-
-void SkipComments(FILE *fp)
-{
-    int ch;
-
-    fscanf(fp," "); // Skip white space.
-    while ((ch = fgetc(fp)) == '#') {
-        while ((ch = fgetc(fp)) != '\n'  &&  ch != EOF)
-            ;
-        fscanf(fp," ");
-    }
-    ungetc(ch, fp); // Replace last character read.
 }
 
 static Image* s_imgaus = NULL, *s_imdiff = NULL;
