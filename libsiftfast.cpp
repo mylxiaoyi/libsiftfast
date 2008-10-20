@@ -1546,7 +1546,7 @@ DEF_CONST(CF4_138776856032E_1,      1.38776856032E-1f)
 DEF_CONST(CF4_199777106478E_1,      1.99777106478E-1f) 
 DEF_CONST(CF4_333329491539E_1,      3.33329491539E-1f) 
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 
 /* definitions for a &= b; etc
 gcc generates very slow code for corresponding
@@ -1571,16 +1571,23 @@ vec_float4 C-style expressions
 gcc generates very slow code for corresponding
 vec_float4 C-style expressions
 */
-#define VEC_AND(a,b)   asm ("andps %2, %1":"=x" (a) :"0" (a),"x" (b))
+#define VEC_AND(a,b)   a=(typeof(a))_mm_and_ps(*(__m128*)&a,*(__m128*)&b)
+#define VEC_XOR(a,b)   a=(typeof(a))_mm_xor_ps(*(__m128*)&a,*(__m128*)&b)
+#define VEC_OR(a,b)   a=(typeof(a))_mm_or_ps(*(__m128*)&a,*(__m128*)&b)
+
+//#define VEC_AND(a,b)   asm ("andps %2, %1":"=x" (a) :"0" (a),"x" (b))
 #define VEC_NAND(a,b)  asm ("andnps %2, %1":"=x" (a) :"0" (a),"x" (b))
 #define VEC_NAND3(a,b,c)  a=(typeof(a))_mm_andnot_ps((vec_float4)(c),(vec_float4)(b))
-#define VEC_OR(a,b)    asm ("orps  %2, %1":"=x" (a) :"0" (a),"x" (b))
-#define VEC_XOR(a,b)   asm ("xorps %2, %1":"=x" (a) :"0" (a),"x" (b))
+//#define VEC_OR(a,b)    asm ("orps  %2, %1":"=x" (a) :"0" (a),"x" (b))
+//#define VEC_XOR(a,b)   asm ("xorps %2, %1":"=x" (a) :"0" (a),"x" (b))
 #define VEC_SUB(a,b)   asm ("subps %2, %1":"=x" (a) :"0" (a),"x" (b))
 
-#define VEC_GT(a,b)     __builtin_ia32_cmpgtps((vec_float4)a,(vec_float4)b)
+#define VEC_GT(a,b)     _mm_cmpgt_ps(*(__m128*)&a,*(__m128*)&b)
+#define VEC_EQ(a,b)     _mm_cmpeq_ps(*(__m128*)&a,*(__m128*)&b)
+
+//#define VEC_GT(a,b)     __builtin_ia32_cmpgtps((vec_float4)a,(vec_float4)b)
 #define VEC_LT(a,b)     __builtin_ia32_cmpltps(a,b)
-#define VEC_EQ(a,b)     __builtin_ia32_cmpeqps(a,b)
+//#define VEC_EQ(a,b)     __builtin_ia32_cmpeqps(a,b)
 #define VEC_NE(a,b)     __builtin_ia32_cmpneqps(a,b)
 #define VEC_GE(a,b)     __builtin_ia32_cmpgeps(a,b)
 
@@ -1690,8 +1697,9 @@ inline vec_float4 __attribute__((__always_inline__))
       VEC_XOR(x, sign);
       
       /* range reduction */
-      a1 = VEC_GT (x , CF4_2414213562373095 );
-      a2 = VEC_GT (x , CF4_04142135623730950 );
+      vec_float4 c0 = CF4_2414213562373095, c1=  CF4_04142135623730950;
+      a1 = (typeof(a1))VEC_GT (x , c0 );
+      a2 = (typeof(a1))VEC_GT (x , c1 );
 
 
 #ifdef _MSC_VER
@@ -1700,10 +1708,14 @@ inline vec_float4 __attribute__((__always_inline__))
       z1 = _mm_div_ps(CF4__1, _mm_add_ps(x,CF4_SMALL));
       z2 = _mm_div_ps(_mm_sub_ps(x,CF4_1),_mm_add_ps(x,CF4_1));
 #else
-      a3 = ~a2; 
-      a2 ^= a1;
-      z1 = CF4__1 / (x+CF4_SMALL);
-      z2 = (x-CF4_1)/(x+CF4_1);
+      a3 = (typeof(a3))_mm_xor_ps(*(__m128*)&CF4_FFFFFFFF,*(__m128*)&a2);
+      a2 = (typeof(a2))_mm_xor_ps(*(__m128*)&a2,*(__m128*)&a1);
+      z1 = (typeof(z1))_mm_div_ps(CF4__1, _mm_add_ps(*(__m128*)&x,CF4_SMALL));
+      z2 = (typeof(z1))_mm_div_ps(_mm_sub_ps(*(__m128*)&x,CF4_1),_mm_add_ps(*(__m128*)&x,CF4_1));
+//      a3 = ~a2; 
+//      a2 ^= a1;
+//      z1 = CF4__1 / (x+CF4_SMALL);
+//      z2 = (x-CF4_1)/(x+CF4_1);
 #endif
 
       
@@ -1724,13 +1736,16 @@ inline vec_float4 __attribute__((__always_inline__))
       y = _mm_add_ps(y, _mm_add_ps(_mm_mul_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(
           CF4_805374449538e_2, z), CF4_138776856032E_1),z), CF4_199777106478E_1), z), CF4_333329491539E_1), z), x), x));
 #else
-      z = x * x;
-      y +=
-            ((( CF4_805374449538e_2 * z
-            - CF4_138776856032E_1) * z
-            + CF4_199777106478E_1) * z
-            - CF4_333329491539E_1) * z * x
-            + x;
+      z = (typeof(z))_mm_mul_ps(*(__m128*)&x,*(__m128*)&x);
+      y = (typeof(y))_mm_add_ps(*(__m128*)&y, _mm_add_ps(_mm_mul_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(
+          CF4_805374449538e_2, *(__m128*)&z), CF4_138776856032E_1),*(__m128*)&z), CF4_199777106478E_1), *(__m128*)&z), CF4_333329491539E_1), *(__m128*)&z), *(__m128*)&x), *(__m128*)&x));
+//      z = x * x;
+//      y +=
+//            ((( CF4_805374449538e_2 * z
+//            - CF4_138776856032E_1) * z
+//            + CF4_199777106478E_1) * z
+//            - CF4_333329491539E_1) * z * x
+//            + x;
 #endif
 
       VEC_XOR(y, sign);
@@ -1747,12 +1762,15 @@ inline vec_float4 __attribute__((__always_inline__))
       vec_float4 y = _y, x = _x;
       vec_float4 z, w;
       vec_float4 x_neg_PI    = CF4_PIF;
-      VEC_AND(x_neg_PI, VEC_GT( CF4_0, x ));
+      vec_float4 temp1 = (vec_float4)VEC_GT( CF4_0, x );
+      VEC_AND(x_neg_PI, temp1);
       vec_float4 y_negativ_2 = CF4_2;
-      VEC_AND(y_negativ_2, VEC_GT( CF4_0, y ));
+      vec_float4 temp2 = (vec_float4)VEC_GT( CF4_0, y );
+      VEC_AND(y_negativ_2, temp2);
 
-      vec_int4 i_x_zero  = VEC_EQ ( CF4_0, x );
-      vec_int4 i_y_zero  = VEC_EQ ( CF4_0, y );
+      vec_float4 c0 = CF4_0;
+      vec_int4 i_x_zero  = (vec_int4)VEC_EQ ( c0, x );
+      vec_int4 i_y_zero  = (vec_int4)VEC_EQ ( c0, y );
       vec_float4 x_zero_PIO2 = CF4_PIO2F;
       VEC_AND(x_zero_PIO2, i_x_zero);
       vec_float4 y_zero    = CF4_1;
@@ -1764,10 +1782,17 @@ inline vec_float4 __attribute__((__always_inline__))
       VEC_AND(z, _mm_xor_ps(CF4_FFFFFFFF, _mm_or_ps(i_x_zero, i_y_zero)));
       return _mm_add_ps(w, _mm_add_ps(z, _mm_mul_ps(x_zero_PIO2, _mm_sub_ps(_mm_sub_ps(CF4_1, y_zero), y_negativ_2))));
 #else
-      w = x_neg_PI *  ( CF4_1  - y_negativ_2 );
-      z = _atanf4( y / (x+x_zero_PIO2));
-      VEC_AND(z, ~(i_x_zero|i_y_zero));
-      return w + z + x_zero_PIO2 * ( CF4_1 - y_zero - y_negativ_2 );
+      w = (typeof(w))_mm_mul_ps(*(__m128*)&x_neg_PI, _mm_sub_ps(CF4_1, *(__m128*)&y_negativ_2 ));
+      z = (typeof(z))_atanf4(_mm_div_ps( *(__m128*)&y, _mm_add_ps(*(__m128*)&x,*(__m128*)&x_zero_PIO2)));
+      vec_int4 temp4 = CF4_FFFFFFFF;
+      vec_int4 temp3 = (vec_int4)_mm_xor_ps(*(__m128*)&temp4, _mm_or_ps(*(__m128*)&i_x_zero, *(__m128*)&i_y_zero));
+      VEC_AND(z, temp3);
+      return (vec_float4)_mm_add_ps(*(__m128*)&w, _mm_add_ps(*(__m128*)&z, _mm_mul_ps(*(__m128*)&x_zero_PIO2, _mm_sub_ps(_mm_sub_ps(CF4_1, *(__m128*)&y_zero), *(__m128*)&y_negativ_2))));
+//      w = x_neg_PI *  ( CF4_1  - y_negativ_2 );
+//      z = _atanf4( y / (x+x_zero_PIO2));
+//      vec_int4 temp3 = ~(i_x_zero|i_y_zero);
+//      VEC_AND(z, temp3);
+//      return w + z + x_zero_PIO2 * ( CF4_1 - y_zero - y_negativ_2 );
 #endif
 }
 
