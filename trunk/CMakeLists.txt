@@ -95,14 +95,20 @@ if(MATLAB)
 
   set(MATLAB_MEX "siftfast.${MEXEXT}")
 
+  if( MSVC )
+    set(MATLAB_MEX_OUT "${CMAKE_CURRENT_BINARY_DIR}/matlab")
+  else()
+    set(MATLAB_MEX_OUT ${CMAKE_CURRENT_BINARY_DIR})
+  endif()
+
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/matlab/${MATLAB_MEX}
+    OUTPUT ${MATLAB_MEX_OUT}/${MATLAB_MEX}
     COMMAND mex
-    ARGS -I\"${CMAKE_SOURCE_DIR}\" -L\"${libsiftfast_BINARY_DIR}\" ${MEX_CXXFLAGS} -lsiftfast -outdir \"${CMAKE_CURRENT_BINARY_DIR}/matlab\" -output \"${MATLAB_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast
+    ARGS -I\"${CMAKE_SOURCE_DIR}\" -L\"${libsiftfast_BINARY_DIR}\" ${MEX_CXXFLAGS} -lsiftfast -outdir \"${MATLAB_MEX_OUT}\" -output \"${MATLAB_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast libsiftfast-static
   )
-  add_custom_target(siftfast_matlab ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/matlab/${MATLAB_MEX})
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/matlab/${MATLAB_MEX} siftfast.m DESTINATION share/siftfast/matlab)
+  add_custom_target(siftfast_matlab ALL DEPENDS ${MATLAB_MEX_OUT}/${MATLAB_MEX})
+  install(FILES ${MATLAB_MEX_OUT}/${MATLAB_MEX} siftfast.m DESTINATION share/siftfast/matlab)
 else()
 message(STATUS "MATLAB installation not found")
 endif(MATLAB)
@@ -116,14 +122,14 @@ if(OCTAVE)
     # need _mex since mkoctfile generates a siftfast.lib which messes with windows stuff
     set(OCTAVE_MEX ${CMAKE_CURRENT_BINARY_DIR}/octave/siftfast_mex.mex)
   else()
-    set(OCTAVE_MEX ${CMAKE_CURRENT_BINARY_DIR}/octave/siftfast.mex)
+    set(OCTAVE_MEX ${CMAKE_CURRENT_BINARY_DIR}/siftfast.mex)
   endif()
 
   add_custom_command(
     OUTPUT ${OCTAVE_MEX}
     COMMAND mkoctfile
     ARGS --mex -I${CMAKE_SOURCE_DIR} -L\"${libsiftfast_BINARY_DIR}\" ${MEX_CXXFLAGS} -lsiftfast -o \"${OCTAVE_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast-static
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast libsiftfast-static
   )
 
   add_custom_target(siftfast_octave ALL DEPENDS ${OCTAVE_MEX})
