@@ -22,8 +22,8 @@ if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
   target_link_libraries(libsiftfast m stdc++)
 endif()
 
-set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast)
-set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME  siftfast)
+set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1)
+set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1)
 
 #if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 #  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "libsiftfast install prefix" FORCE )
