@@ -26,8 +26,7 @@ http://openrave.programmingvision.com/index.php?title=Misc:MatlabOpenMP
 
 Basically the problem is that the default libgomp might be compiled with nodlopen flag refusing it to be dynamically loaded. The only way around this is to compile your own libgomp library and make sure libsiftfast is linking to it.
 
-Matlab
-------
+Matlab:
 
 Read this if you are interested in using siftfast.m for matlab on Linux. When compiling a matlab mex file,  you might get a message saying the gcc version is too high. If so, matlab will have a hard time locating the correct libstdc++.so file. In this case, go into /usr/local/share/sys/os/glnx86
 
@@ -36,3 +35,9 @@ sudo mv libgcc_s.so.1 libgcc_s.so.1.back
 sudo ln -s /lib/libgcc_s.so.1 libgcc_s.so.1
 sudo rm libstdc++.so.6 (this was already a symbolic link)
 sudo ln -s /usr/lib/libstdc++.so.6.0.9 libstdc++.so.6
+
+
+Windows Instructions:
+---------------------
+
+Download cmake (http://www.cmake.org/), make sure to install it in the PATH. Then run runcmake.bat, that should generate visual studio files in the build folder. Open libsiftfast.sln and compile.
