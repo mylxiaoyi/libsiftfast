@@ -21,6 +21,11 @@
 
 #include <sys/timeb.h>    // ftime(), struct timeb
 
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 #include <assert.h>
 
 using namespace std;
@@ -99,11 +104,16 @@ Image ReadPGM(FILE *fp)
 
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+    // have to set to binary
+     _setmode(_fileno(stdin),_O_BINARY);
+#endif
+
     Image image = ReadPGM(stdin);
     Keypoint keypts;
     float fproctime;
 
-    cerr << "Finding keypoints..." << endl;
+    cerr << "Finding keypoints (image " << image->cols << "x" << image->rows << ")..." << endl;
     {
         u32 basetime = timeGetTime();
         keypts = GetKeypoints(image);

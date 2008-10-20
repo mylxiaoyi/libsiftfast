@@ -59,7 +59,7 @@
 
 using namespace std;
 
-#define PI 3.141592654
+#define PI 3.141592654f
 #define SQRT2 1.4142136f
 
 // if defined, will profile the critical functions and write results to prof.txt
@@ -113,11 +113,18 @@ typedef unsigned int u32;
 typedef unsigned long long u64;
 
 #if defined(__SSE__) && !defined(SIMDMATH_H)
+
+#ifdef _MSC_VER
+typedef __m128           vec_int4;
+typedef __m128           vec_float4;
+#else
 // need an implementation of atan2 in SSE
 typedef int             vec_int4   __attribute__ ((vector_size (16)));
 typedef float           vec_float4 __attribute__ ((vector_size (16)));
 inline vec_float4 atanf4(  vec_float4 x );
 inline vec_float4 atan2f4( vec_float4 y, vec_float4 x );
+#endif
+
 #endif
 
 inline u64 GetMicroTime()
@@ -265,7 +272,7 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
 
     if( rows & 1 ) {
         for(int j = 0; j < cols; ++j)
-            pixels[j] = pdata[rows-1+j*rows];
+            pixels[j] = (float)pdata[rows-1+j*rows];
     }
 #else
     for(int i = 0; i < rows; ++i, pixels+=image->stride) {
@@ -842,7 +849,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
                 _mm_storeu_ps(pixels+i*stride,maccum);
             else {
                 _mm_store_ps(faccum,maccum);
-                for(int k = 0; k < (stride-j)&3; ++k)
+                for(int k = 0; k < ((stride-j)&3); ++k)
                     pixels[i*stride+k] = faccum[k];
             }
 #endif
@@ -862,7 +869,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
 Keypoint FindMaxMin(Image* imdiff, Image* imgaus, float fscale, Keypoint keypts)
 {
     DVSTARTPROFILE();
-    
+
     int rows = imdiff[0]->rows, cols = imdiff[0]->cols, stride = imdiff[0]->stride;
     memset(s_MaxMinArray,0,rows*cols);
 
@@ -956,138 +963,6 @@ void GradOriImages(Image image, Image imgrad, Image imorient)
         }
     }
 }
-
-#ifdef __SSE__
-void GradOriImagesFast(Image image, Image imgrad, Image imorient)
-{
-    DVSTARTPROFILE();
-    
-    int rows = image->rows, cols = image->cols, stride = image->stride;
-    float* _pixels = image->pixels, *_pfgrad = imgrad->pixels, *_pforient = imorient->pixels;
-    int endcol = ((cols-1)&~3);
-    
-    {
-        // first row is special 2*(_pixels[0]-_pixels[stride])
-        float fdiffc, fdiffr;
-
-        // first and last elt is 2*([1]-[0]), have to improvise for sse
-        __m128 mprevj = _mm_set_ps(_pixels[2],_pixels[1],_pixels[0],2.0f*_pixels[0]-_pixels[1]);
-        
-        for(int j = 0; j < endcol; j += 4) {
-            float* pf = _pixels+j;
-            __m128 mnewj = _mm_loadu_ps(pf+3);
-            __m128 mgradr = _MM_LOAD_ALIGNED(pf);
-            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
-            mgradr = _mm_sub_ps(mgradr, _MM_LOAD_ALIGNED(pf+stride));
-            mgradr = _mm_add_ps(mgradr,mgradr);
-            
-            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
-            __m128 morient = atan2f4(mgradr,mgradc);
-            
-            _MM_STORE_ALIGNED(_pfgrad+j,mrad);
-            mprevj = mnewj;
-            _MM_STORE_ALIGNED(_pforient+j,morient);
-        }
-
-        
-        // compute the rest the old way
-        for(int j = endcol; j < cols; ++j) {
-            if( j == 0 )
-                fdiffc = 2.0f*(_pixels[1]-_pixels[0]);
-            else if( j == cols-1 )
-                fdiffc = 2.0f*(_pixels[j]-_pixels[j-1]);
-            else
-                fdiffc = _pixels[j+1] - _pixels[j-1];
-
-            fdiffr = 2.0f*(_pixels[j] - _pixels[stride+j]);
-
-            _pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
-            _pforient[j] = atan2f(fdiffr,fdiffc);
-        }
-    }
-
-    #pragma omp parallel for schedule(dynamic,16) // might crash Matlab mex files
-    for(int i = 1; i < rows-1; ++i) {
-
-        float fdiffc, fdiffr;
-        float* pixels = _pixels + i*stride;
-        float* pfgrad = _pfgrad + i*stride;
-        float* pforient = _pforient + i*stride;
-
-        // first and last elt is 2*([1]-[0]), have to improvise for sse
-        __m128 mprevj = _mm_set_ps(pixels[2],pixels[1],pixels[0],2.0f*pixels[0]-pixels[1]);
-
-        for(int j = 0; j < endcol; j += 4) {
-            float* pf = pixels+j;
-            __m128 mnewj = _mm_loadu_ps(pf+3);
-            __m128 mgradr = _MM_LOAD_ALIGNED(pf-stride);
-            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
-            mgradr = _mm_sub_ps(mgradr,_MM_LOAD_ALIGNED(pf+stride));
-            
-            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
-            __m128 morient = atan2f4(mgradr,mgradc);
-            
-            _MM_STORE_ALIGNED(pfgrad+j,mrad);
-            mprevj = mnewj;
-            _MM_STORE_ALIGNED(pforient+j,morient);
-        }
-
-        assert( i != 0 && i != rows-1 );
-        // compute the rest the old way
-        for(int j = endcol; j < cols; ++j) {
-            if( j == cols-1 )
-                fdiffc = 2.0f*(pixels[j]-pixels[j-1]);
-            else
-                fdiffc = pixels[j+1] - pixels[j-1];
-
-            fdiffr = pixels[-stride+j] - pixels[stride+j];
-
-            pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
-            pforient[j] = atan2f(fdiffr,fdiffc);
-        }
-    }
-
-    {
-        float fdiffc, fdiffr;
-        float* pixels = _pixels + (rows-1)*stride;
-        float* pfgrad = _pfgrad + (rows-1)*stride;
-        float* pforient = _pforient + (rows-1)*stride;
-
-        // last row is special 2*(pixels[stride*(cols-1)]-pixels[stride*(cols-2)])
-        // first and last elt is 2*([1]-[0]), have to improvise for sse
-        __m128 mprevj = _mm_set_ps(pixels[2],pixels[1],pixels[0],2.0f*pixels[0]-pixels[1]);
-
-        for(int j = 0; j < endcol; j += 4) {
-            float* pf = pixels+j;
-            __m128 mnewj = _mm_loadu_ps(pf+3);
-            __m128 mgradr = _MM_LOAD_ALIGNED(pf-stride);
-            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
-            mgradr = _mm_sub_ps(mgradr,_MM_LOAD_ALIGNED(pf));
-            mgradr = _mm_add_ps(mgradr,mgradr);
-            
-            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
-            __m128 morient = atan2f4(mgradr,mgradc);
-            
-            _MM_STORE_ALIGNED(pfgrad+j,mrad);
-            mprevj = mnewj;
-            _MM_STORE_ALIGNED(pforient+j,morient);
-        }
-
-        // compute the rest the old way
-        for(int j = endcol; j < cols; ++j) {
-            if( j == cols-1 )
-                fdiffc = 2.0f*(pixels[j]-pixels[j-1]);
-            else
-                fdiffc = pixels[j+1] - pixels[j-1];
-
-            fdiffr = 2.0f*(pixels[-stride+j] - pixels[j]);
-
-            pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
-            pforient[j] = atan2f(fdiffr,fdiffc);
-        }
-    }
-}
-#endif
 
 int LocalMaxMin(float fval, Image imdiff, int rowstart, int colstart)
 {
@@ -1250,7 +1125,7 @@ Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,
     memset(hists,0,sizeof(hists));
 
     const float fbinmult = 36.0f/(2*PI);
-    const float fbinadd = (PI+0.001f)*fbinmult;
+    const float fbinadd = (float)(PI+0.001f)*fbinmult;
 
     // gather votes for orientation
     int windowsize = (int)(fSize*1.5f*3.0f); // varB4 (temp)
@@ -1385,6 +1260,7 @@ Keypoint MakeKeypoint(Image imgrad, Image imorient, float fscale, float fSize,
         else
             pnewkeypt = (Keypoint)sift_aligned_malloc(sizeof(KeypointSt),16);
     }
+
     pnewkeypt->next = keypts;
     pnewkeypt->ori = forient;
     pnewkeypt->row = fscale*frowstart;
@@ -1515,7 +1391,7 @@ void KeySample(float* fdesc, Keypoint pkeypt, Image imgrad, Image imorient,
 //#endif
         
         float frow = (float)row;
-        float fcol = -windowsize;
+        float fcol = -(float)windowsize;
         for(int col = -windowsize; col <= windowsize; ++col, fcol += 1) { // ebx
             float rpos = fsr*fcol + fcr*frow + fdrr;
             float cpos = fcr*fcol - fsr*frow + fdcr;
@@ -1573,7 +1449,7 @@ void AddSample(float* fdesc, Keypoint pkeypt, Image imgrad, Image imorient, int 
 
 void PlaceInIndex(float* fdesc, float mag, float ori, float rx, float cx)
 {
-    float oribin = ori*(8.0f/(2*PI)); // var10
+    float oribin = ori*(8.0f/(2*(float)PI)); // var10
     int newrow, newcol, neworient; // esi, var20, var18
     float rfrac, cfrac, ofrac;
     if( rx < 0 ) {
@@ -1670,8 +1546,27 @@ DEF_CONST(CF4_138776856032E_1,      1.38776856032E-1f)
 DEF_CONST(CF4_199777106478E_1,      1.99777106478E-1f) 
 DEF_CONST(CF4_333329491539E_1,      3.33329491539E-1f) 
 
-#define VEC_F2I(a,b)   asm("cvttps2dq %1, %0":"=x" (a) :"x" (b))
-#define VEC_I2F(a,b)   asm("cvtdq2ps  %1, %0":"=x" (a) :"x" (b))
+#ifdef _MSC_VER
+
+/* definitions for a &= b; etc
+gcc generates very slow code for corresponding
+vec_float4 C-style expressions
+*/
+#define VEC_AND(a,b)   a=_mm_and_ps(a,b)
+#define VEC_NAND(a,b)  a=_mm_andnot_ps(a,b)
+#define VEC_NAND3(a,b,c)  a=_mm_andnot_ps(c,b);
+#define VEC_OR(a,b)    a=_mm_or_ps(a,b)
+#define VEC_XOR(a,b)   a=_mm_xor_ps(a,b)
+#define VEC_SUB(a,b)   a=_mm_sub_ps(a,b)
+
+#define VEC_GT(a,b)     _mm_cmpgt_ps(a,b)
+#define VEC_LT(a,b)     _mm_cmplt_ps(a,b)
+#define VEC_EQ(a,b)     _mm_cmpeq_ps(a,b)
+#define VEC_NE(a,b)     _mm_cmpneq_ps(a,b)
+#define VEC_GE(a,b)     _mm_cmpge_ps(a,b)
+
+#else
+
 /* definitions for a &= b; etc
 gcc generates very slow code for corresponding
 vec_float4 C-style expressions
@@ -1688,20 +1583,13 @@ vec_float4 C-style expressions
 #define VEC_EQ(a,b)     __builtin_ia32_cmpeqps(a,b)
 #define VEC_NE(a,b)     __builtin_ia32_cmpneqps(a,b)
 #define VEC_GE(a,b)     __builtin_ia32_cmpgeps(a,b)
+
+#endif
+
 #define VEC_SR(v,n)     _mm_srli_epi32(v,n)
 #define VEC_SL(v,n)     _mm_slli_epi32(v,n)
 
-
-#define vec_re(x)             _mm_rcp_ps(x)
-#define vec_sr(x,y)           _mm_srli_epi32(x,y)
-#define vec_sl(x,y)           _mm_slli_epi32(x,y)
-#define vec_or(a,b)           ((a)|(b))
-#define vec_and(a,b)          ((a)&(b))
-#define vec_add(a,b)          ((a)+(b))
-#define vec_madd(a,b,c)       ((a)*(b)+(c))
-#define vec_nmsub(a,b,c)      ((c)-(a)*(b))
-#define vec_splat(x,n)        (typeof(x))_mm_shuffle_ps(x,x,_MM_SHUFFLE(n,n,n,n))
-
+DEI_CONST(CF4_FFFFFFFF,        0xffffffff) 
 DEF_CONST(CF4_0,        0.0f) 
 DEF_CONST(CF4_2,        2.0f) 
 DEI_CONST(CI4_SIGN,     0x80000000u)
@@ -1712,15 +1600,89 @@ DEF_CONST(CF4_PIO2F,    1.570796326794896619f)
 DEF_CONST(CF4_PIO4F,    0.7853981633974483096f) 
 DEF_CONST(CF4_PIF,      3.14159265358979323846f)
 
-inline vec_int4  __attribute__((__always_inline__))
+/*#ifdef _MSC_VER
+
+#define _signf4(a, x ){ \
+      a = CI4_SIGN; \
+      VEC_AND(a, x); \
+}
+
+#define _atanf4(res, _x){ \
+      vec_float4 x = _x; \
+      vec_float4 y, z0,z1,z2; \
+      vec_int4 a1, a2, a3; \
+      vec_int4 sign; \
+      _signf4(sign, x ); \
+      VEC_XOR(x, sign); \
+      a1 = VEC_GT (x , CF4_2414213562373095 ); \
+      a2 = VEC_GT (x , CF4_04142135623730950 ); \
+      a3 = _mm_xor_ps(CF4_FFFFFFFF,a2); \
+      a2 = _mm_xor_ps(a2,a1); \
+      z1 = _mm_div_ps(CF4__1, _mm_add_ps(x,CF4_SMALL)); \
+      z2 = _mm_div_ps(_mm_sub_ps(x,CF4_1),_mm_add_ps(x,CF4_1)); \
+      VEC_AND(z1, a1); \
+      VEC_AND(z2, a2); \
+      VEC_AND(x, a3); \
+      VEC_OR(x, z1); \
+      VEC_OR(x, z2); \
+      y = CF4_PIO2F; \
+      z1 = CF4_PIO4F; \
+      VEC_AND(y, a1); \
+      VEC_AND(z1, a2); \
+      VEC_OR(y, z1); \
+      z0 = _mm_mul_ps(x,x); \
+      y = _mm_add_ps(y, _mm_add_ps(_mm_mul_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps( \
+          CF4_805374449538e_2, z0), CF4_138776856032E_1),z0), CF4_199777106478E_1), z0), CF4_333329491539E_1), z0), x), x)); \
+      VEC_XOR(y, sign); \
+      res = y; \
+}
+
+#define atan2f4(res, _y, _x ){ \
+      vec_float4 x = _x, y = _y; \
+      vec_float4 z, w; \
+      vec_float4 x_neg_PI    = CF4_PIF; \
+      VEC_AND(x_neg_PI, VEC_GT( CF4_0, x )); \
+      vec_float4 y_negativ_2 = CF4_2; \
+      VEC_AND(y_negativ_2, VEC_GT( CF4_0, y )); \
+      vec_int4 i_x_zero  = VEC_EQ ( CF4_0, x ); \
+      vec_int4 i_y_zero  = VEC_EQ ( CF4_0, y ); \
+      vec_float4 x_zero_PIO2 = CF4_PIO2F; \
+      VEC_AND(x_zero_PIO2, i_x_zero); \
+      vec_float4 y_zero    = CF4_1; \
+      VEC_AND(y_zero, i_y_zero); \
+      w = _mm_mul_ps(x_neg_PI, _mm_sub_ps(CF4_1, y_negativ_2 )); \
+      vec_float4 xtan = _mm_div_ps( y, _mm_add_ps(x,x_zero_PIO2)); \
+      _atanf4(z, xtan); \
+      VEC_AND(z, _mm_xor_ps(CF4_FFFFFFFF, _mm_or_ps(i_x_zero, i_y_zero))); \
+      res = _mm_add_ps(w, _mm_add_ps(z, _mm_mul_ps(x_zero_PIO2, _mm_sub_ps(_mm_sub_ps(CF4_1, y_zero), y_negativ_2)))); \
+}
+
+#else*/
+
+#ifdef _MSC_VER
+__forceinline vec_int4
+#else
+inline vec_int4 __attribute__((__always_inline__))
+#endif
       _signf4( vec_float4 x ){
       vec_int4 a = CI4_SIGN;
       VEC_AND(a, x);
       return a;
 }
 
+
+#ifdef _MSC_VER
+__forceinline vec_float4
+#else
 inline vec_float4 __attribute__((__always_inline__))
-            _atanf4( vec_float4 x ){
+#endif
+            _atanf4( vec_float4 _x ){
+
+//    float SIFT_ALIGNED16(_mem[4]);
+//    _mm_store_ps(_mem,_x);
+//    return _mm_set_ps(atanf(_mem[3]), atanf(_mem[2]), atanf(_mem[1]), atanf(_mem[0]));
+
+                vec_float4 x = _x;
       vec_float4 y, z,z1,z2;
       vec_int4 a1, a2, a3;
       /* make argument positive and save the sign */
@@ -1730,11 +1692,21 @@ inline vec_float4 __attribute__((__always_inline__))
       /* range reduction */
       a1 = VEC_GT (x , CF4_2414213562373095 );
       a2 = VEC_GT (x , CF4_04142135623730950 );
+
+
+#ifdef _MSC_VER
+      a3 = _mm_xor_ps(CF4_FFFFFFFF,a2);
+      a2 = _mm_xor_ps(a2,a1);
+      z1 = _mm_div_ps(CF4__1, _mm_add_ps(x,CF4_SMALL));
+      z2 = _mm_div_ps(_mm_sub_ps(x,CF4_1),_mm_add_ps(x,CF4_1));
+#else
       a3 = ~a2; 
       a2 ^= a1;
-
       z1 = CF4__1 / (x+CF4_SMALL);
       z2 = (x-CF4_1)/(x+CF4_1);
+#endif
+
+      
       VEC_AND(z1, a1);
       VEC_AND(z2, a2);
       VEC_AND(x, a3);
@@ -1747,6 +1719,11 @@ inline vec_float4 __attribute__((__always_inline__))
       VEC_AND(z1, a2);
       VEC_OR(y, z1);
 
+#ifdef _MSC_VER
+      z = _mm_mul_ps(x,x);
+      y = _mm_add_ps(y, _mm_add_ps(_mm_mul_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(_mm_sub_ps(_mm_mul_ps(
+          CF4_805374449538e_2, z), CF4_138776856032E_1),z), CF4_199777106478E_1), z), CF4_333329491539E_1), z), x), x));
+#else
       z = x * x;
       y +=
             ((( CF4_805374449538e_2 * z
@@ -1754,13 +1731,20 @@ inline vec_float4 __attribute__((__always_inline__))
             + CF4_199777106478E_1) * z
             - CF4_333329491539E_1) * z * x
             + x;
+#endif
 
       VEC_XOR(y, sign);
       return y;
 }
 
-inline vec_float4  __attribute__((__always_inline__))
-      atan2f4( vec_float4 y, vec_float4 x ){
+#ifdef _MSC_VER
+__forceinline vec_float4
+#else
+inline vec_float4 __attribute__((__always_inline__))
+#endif
+      atan2f4( vec_float4 _y, vec_float4 _x ){
+
+      vec_float4 y = _y, x = _x;
       vec_float4 z, w;
       vec_float4 x_neg_PI    = CF4_PIF;
       VEC_AND(x_neg_PI, VEC_GT( CF4_0, x ));
@@ -1774,13 +1758,151 @@ inline vec_float4  __attribute__((__always_inline__))
       vec_float4 y_zero    = CF4_1;
       VEC_AND(y_zero, i_y_zero);
 
-
+#ifdef _MSC_VER
+      w = _mm_mul_ps(x_neg_PI, _mm_sub_ps(CF4_1, y_negativ_2 ));
+      z = _atanf4(_mm_div_ps( y, _mm_add_ps(x,x_zero_PIO2)));
+      VEC_AND(z, _mm_xor_ps(CF4_FFFFFFFF, _mm_or_ps(i_x_zero, i_y_zero)));
+      return _mm_add_ps(w, _mm_add_ps(z, _mm_mul_ps(x_zero_PIO2, _mm_sub_ps(_mm_sub_ps(CF4_1, y_zero), y_negativ_2))));
+#else
       w = x_neg_PI *  ( CF4_1  - y_negativ_2 );
-
       z = _atanf4( y / (x+x_zero_PIO2));
       VEC_AND(z, ~(i_x_zero|i_y_zero));
-
       return w + z + x_zero_PIO2 * ( CF4_1 - y_zero - y_negativ_2 );
+#endif
 }
 
+//#endif
+
+#endif
+
+#ifdef __SSE__
+void GradOriImagesFast(Image image, Image imgrad, Image imorient)
+{
+    DVSTARTPROFILE();
+    
+    int rows = image->rows, cols = image->cols, stride = image->stride;
+    float* _pixels = image->pixels, *_pfgrad = imgrad->pixels, *_pforient = imorient->pixels;
+    int endcol = ((cols-1)&~3);
+    
+    {
+        // first row is special 2*(_pixels[0]-_pixels[stride])
+        float fdiffc, fdiffr;
+
+        // first and last elt is 2*([1]-[0]), have to improvise for sse
+        __m128 mprevj = _mm_set_ps(_pixels[2],_pixels[1],_pixels[0],2.0f*_pixels[0]-_pixels[1]);
+        
+        for(int j = 0; j < endcol; j += 4) {
+            float* pf = _pixels+j;
+            __m128 mnewj = _mm_loadu_ps(pf+3);
+            __m128 mgradr = _MM_LOAD_ALIGNED(pf);
+            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
+            mgradr = _mm_sub_ps(mgradr, _MM_LOAD_ALIGNED(pf+stride));
+            mgradr = _mm_add_ps(mgradr,mgradr);
+            
+            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
+            __m128 morient = atan2f4(mgradr,mgradc);
+            
+            _MM_STORE_ALIGNED(_pfgrad+j,mrad);
+            mprevj = mnewj;
+            _MM_STORE_ALIGNED(_pforient+j,morient);
+        }
+
+        
+        // compute the rest the old way
+        for(int j = endcol; j < cols; ++j) {
+            if( j == 0 )
+                fdiffc = 2.0f*(_pixels[1]-_pixels[0]);
+            else if( j == cols-1 )
+                fdiffc = 2.0f*(_pixels[j]-_pixels[j-1]);
+            else
+                fdiffc = _pixels[j+1] - _pixels[j-1];
+
+            fdiffr = 2.0f*(_pixels[j] - _pixels[stride+j]);
+
+            _pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
+            _pforient[j] = atan2f(fdiffr,fdiffc);
+        }
+    }
+
+    #pragma omp parallel for schedule(dynamic,16) // might crash Matlab mex files
+    for(int i = 1; i < rows-1; ++i) {
+
+        float fdiffc, fdiffr;
+        float* pixels = _pixels + i*stride;
+        float* pfgrad = _pfgrad + i*stride;
+        float* pforient = _pforient + i*stride;
+
+        // first and last elt is 2*([1]-[0]), have to improvise for sse
+        __m128 mprevj = _mm_set_ps(pixels[2],pixels[1],pixels[0],2.0f*pixels[0]-pixels[1]);
+
+        for(int j = 0; j < endcol; j += 4) {
+            float* pf = pixels+j;
+            __m128 mnewj = _mm_loadu_ps(pf+3);
+            __m128 mgradr = _MM_LOAD_ALIGNED(pf-stride);
+            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
+            mgradr = _mm_sub_ps(mgradr,_MM_LOAD_ALIGNED(pf+stride));
+            
+            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
+            __m128 morient = atan2f4(mgradr,mgradc);
+            
+            _MM_STORE_ALIGNED(pfgrad+j,mrad);
+            mprevj = mnewj;
+            _MM_STORE_ALIGNED(pforient+j,morient);
+        }
+
+        assert( i != 0 && i != rows-1 );
+        // compute the rest the old way
+        for(int j = endcol; j < cols; ++j) {
+            if( j == cols-1 )
+                fdiffc = 2.0f*(pixels[j]-pixels[j-1]);
+            else
+                fdiffc = pixels[j+1] - pixels[j-1];
+
+            fdiffr = pixels[-stride+j] - pixels[stride+j];
+
+            pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
+            pforient[j] = atan2f(fdiffr,fdiffc);
+        }
+    }
+
+    {
+        float fdiffc, fdiffr;
+        float* pixels = _pixels + (rows-1)*stride;
+        float* pfgrad = _pfgrad + (rows-1)*stride;
+        float* pforient = _pforient + (rows-1)*stride;
+
+        // last row is special 2*(pixels[stride*(cols-1)]-pixels[stride*(cols-2)])
+        // first and last elt is 2*([1]-[0]), have to improvise for sse
+        __m128 mprevj = _mm_set_ps(pixels[2],pixels[1],pixels[0],2.0f*pixels[0]-pixels[1]);
+
+        for(int j = 0; j < endcol; j += 4) {
+            float* pf = pixels+j;
+            __m128 mnewj = _mm_loadu_ps(pf+3);
+            __m128 mgradr = _MM_LOAD_ALIGNED(pf-stride);
+            __m128 mgradc = _mm_sub_ps(_mm_shuffle_ps(mprevj,mnewj,0x4e),mprevj);
+            mgradr = _mm_sub_ps(mgradr,_MM_LOAD_ALIGNED(pf));
+            mgradr = _mm_add_ps(mgradr,mgradr);
+            
+            __m128 mrad = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(mgradr,mgradr),_mm_mul_ps(mgradc,mgradc)));
+            __m128 morient = atan2f4(mgradr,mgradc);
+            
+            _MM_STORE_ALIGNED(pfgrad+j,mrad);
+            mprevj = mnewj;
+            _MM_STORE_ALIGNED(pforient+j,morient);
+        }
+
+        // compute the rest the old way
+        for(int j = endcol; j < cols; ++j) {
+            if( j == cols-1 )
+                fdiffc = 2.0f*(pixels[j]-pixels[j-1]);
+            else
+                fdiffc = pixels[j+1] - pixels[j-1];
+
+            fdiffr = 2.0f*(pixels[-stride+j] - pixels[j]);
+
+            pfgrad[j] = sqrtf(fdiffc*fdiffc + fdiffr*fdiffr);
+            pforient[j] = atan2f(fdiffr,fdiffc);
+        }
+    }
+}
 #endif
