@@ -335,6 +335,7 @@ Keypoint GetKeypoints(Image porgimage)
 
     delete[] s_imgaus;
     delete[] s_imdiff;
+    sift_aligned_free(s_MaxMinArray);
 
 #ifdef DVPROFILE
     DVProfWrite("prof.txt");
