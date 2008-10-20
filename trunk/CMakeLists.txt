@@ -9,9 +9,9 @@ endif()
 
 # check for SSE extensions
 if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
-  add_definitions( "-msse2 -mfpmath=sse" )
+  add_definitions( "-msse2 -mfpmath=sse " )
 elseif(MSVC)
-  add_definitions( "/arch:SSE2 /fp:fast" )
+  add_definitions( "/arch:SSE2 /fp:fast -D__SSE__ -D__SSE2__" )
 endif()
 message(STATUS "Using SSE2 extensions")
 
