@@ -3,7 +3,7 @@ all:
 	@if [ $(prefix) ]; then \
 		cd build && cmake -DCMAKE_INSTALL_PREFIX=$(prefix) -DCMAKE_BUILD_TYPE=Release ..; \
 	else \
-		cd build && cmake -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=Release ..; \
+		cd build && cmake -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release ..; \
 	fi
 	cd build && make
 
