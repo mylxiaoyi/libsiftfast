@@ -16,26 +16,26 @@ include(CheckCXXCompilerFlag)
 if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
   set(SSE_FLAGS)
 
-  set(CMAKE_REQUIRED_FLAGS "-msse3")
-  check_cxx_source_runs("
-    #include <pmmintrin.h>
-
-    int main()
-    {
-        __m128 a, b;
-        __m128i c;
-        __m128d d;
-        float vals[4] = {0};
-        int ivals[4] = {0};
-        double dvals[2] = {0};
-        a = _mm_loadu_ps(vals);
-        c = _mm_lddqu_si128((const __m128i*)ivals);
-        d = _mm_loaddup_pd(dvals);
-        b = _mm_hadd_ps(a,a);
-        _mm_storeu_ps(vals,b);
-        return 0;
-    }"
-    HAS_SSE3_EXTENSIONS)
+#   set(CMAKE_REQUIRED_FLAGS "-msse3")
+#   check_cxx_source_runs("
+#     #include <pmmintrin.h>
+# 
+#     int main()
+#     {
+#         __m128 a, b;
+#         __m128i c;
+#         __m128d d;
+#         float vals[4] = {0};
+#         int ivals[4] = {0};
+#         double dvals[2] = {0};
+#         a = _mm_loadu_ps(vals);
+#         c = _mm_lddqu_si128((const __m128i*)ivals);
+#         d = _mm_loaddup_pd(dvals);
+#         b = _mm_hadd_ps(a,a);
+#         _mm_storeu_ps(vals,b);
+#         return 0;
+#     }"
+#     HAS_SSE3_EXTENSIONS)
 
   set(CMAKE_REQUIRED_FLAGS "-msse2")
   check_cxx_source_runs("
@@ -69,10 +69,10 @@ if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
 
   set(CMAKE_REQUIRED_FLAGS)
 
-  if( HAS_SSE3_EXTENSIONS )
-    message(STATUS "Using SSE3 extensions")
-    set(SSE_FLAGS "-msse3 -mfpmath=sse")
-  elseif(HAS_SSE2_EXTENSIONS)
+#   if( HAS_SSE3_EXTENSIONS )
+#     message(STATUS "Using SSE3 extensions")
+#     set(SSE_FLAGS "-msse3 -mfpmath=sse")
+  if(HAS_SSE2_EXTENSIONS)
     message(STATUS "Using SSE2 extensions")
     set(SSE_FLAGS "-msse2 -mfpmath=sse")
   elseif(HAS_SSE_EXTENSIONS)
