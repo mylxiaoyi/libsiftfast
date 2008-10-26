@@ -23,8 +23,14 @@ if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
     int main()
     {
         __m128 a, b;
+        __m128i c;
+        __m128d d;
         float vals[4] = {0};
+        int ivals[4] = {0};
+        double dvals[2] = {0};
         a = _mm_loadu_ps(vals);
+        c = _mm_lddqu_si128(ivals);
+        d = _mm_loaddup_pd(dvals);
         b = _mm_hadd_ps(a,a);
         _mm_storeu_ps(vals,b);
         return 0;
