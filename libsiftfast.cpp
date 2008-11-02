@@ -571,6 +571,8 @@ static LISTBUF  s_listconvbuf; //TODO, make 16 byte aligned
 static int s_convbufsize = 0; // the size of all the buffers in s_listconvbuf
 static int SIFT_ALIGNED16(s_convmask[4]) = {0xffffffff,0xffffffff,0xffffffff,0};
 
+struct myaccum { float SIFT_ALIGNED16(faccum[2][4]); };
+
 void ConvHorizontalFast(Image imgdst, Image image, float* kernel, int ksize)
 {
     int rows = image->rows, cols = image->cols, stride = image->stride;
@@ -633,7 +635,9 @@ void ConvHorizontalFast(Image imgdst, Image image, float* kernel, int ksize)
             }
         }
 #endif
-        float SIFT_ALIGNED16(faccum[2][4]);    
+        // get 16 byte aligned array
+        myaccum ac;
+        
         float* pixels = _pixels+i*stride;
         float* pdst = _pdst + i*stride;
         
@@ -680,14 +684,14 @@ void ConvHorizontalFast(Image imgdst, Image image, float* kernel, int ksize)
 #ifdef __SSE3__
             maccum0 = _mm_hadd_ps(maccum0,maccum1);
             maccum0 = _mm_hadd_ps(maccum0,maccum0);
-            _mm_storel_pi((__m64*)faccum[0],maccum0);
-            pdst[off] = faccum[0][0];
-            pdst[off+2] = faccum[0][1];
+            _mm_storel_pi((__m64*)ac.faccum[0],maccum0);
+            pdst[off] = ac.faccum[0][0];
+            pdst[off+2] = ac.faccum[0][1];
 #else
-            _mm_store_ps(faccum[0],maccum0);
-            _mm_store_ps(faccum[1],maccum1);
-            pdst[off] = faccum[0][0]+faccum[0][1]+faccum[0][2]+faccum[0][3];
-            pdst[off+2] = faccum[1][0]+faccum[1][1]+faccum[1][2]+faccum[1][3];
+            _mm_store_ps(ac.faccum[0],maccum0);
+            _mm_store_ps(ac.faccum[1],maccum1);
+            pdst[off] = ac.faccum[0][0]+ac.faccum[0][1]+ac.faccum[0][2]+ac.faccum[0][3];
+            pdst[off+2] = ac.faccum[1][0]+ac.faccum[1][1]+ac.faccum[1][2]+ac.faccum[1][3];
 #endif
         }
 
@@ -707,8 +711,8 @@ void ConvHorizontalFast(Image imgdst, Image image, float* kernel, int ksize)
             maccum0 = _mm_hadd_ps(maccum0,maccum0);
             _mm_store_ss(&pdst[j],maccum0);
 #else
-            _mm_store_ps(faccum[0],maccum0);
-            pdst[j] = faccum[0][0]+faccum[0][1]+faccum[0][2]+faccum[0][3];
+            _mm_store_ps(ac.faccum[0],maccum0);
+            pdst[j] = ac.faccum[0][0]+ac.faccum[0][1]+ac.faccum[0][2]+ac.faccum[0][3];
 #endif
         }
 
@@ -762,7 +766,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
         
         float* pixels = _pixels+j;
 #ifndef ALIGNED_IMAGE_ROWS
-        float SIFT_ALIGNED16(faccum[4]);
+        myaccum ac;
 #endif
         
 #ifdef _OPENMP
@@ -850,9 +854,9 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
             if( j <= stride-4 )
                 _mm_storeu_ps(pixels+i*stride,maccum);
             else {
-                _mm_store_ps(faccum,maccum);
+                _mm_store_ps(ac.faccum[0],maccum);
                 for(int k = 0; k < ((stride-j)&3); ++k)
-                    pixels[i*stride+k] = faccum[k];
+                    pixels[i*stride+k] = ac.faccum[0][k];
             }
 #endif
         }

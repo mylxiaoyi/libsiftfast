@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #endif
 
+#include <cstdlib>
 #include <assert.h>
 
 using namespace std;
