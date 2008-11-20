@@ -94,7 +94,9 @@ set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME  siftfast CLEAN_
 message(STATUS "installing to ${CMAKE_INSTALL_PREFIX}")
 
 # compile without depending on libsiftfast
-add_executable(siftfast libsiftfast.cpp siftfast.cpp)
+
+add_executable(siftfast libsiftfast.cpp siftfast.cpp)# profiler.cpp)
+#set_target_properties(siftfast PROPERTIES COMPILE_FLAGS "-DDVPROFILE")
 #target_link_libraries(siftfast libsiftfast)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
