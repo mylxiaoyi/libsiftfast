@@ -291,51 +291,58 @@ static char* s_MaxMinArray = NULL;
 
 Keypoint GetKeypoints(Image porgimage)
 {
-    DVSTARTPROFILE();
-
-    PeakThresh = 0.04f/(float)Scales;
-    s_imgaus = new Image[((27 + 4*Scales)&0xfffffff0)/4];
-    s_imdiff = new Image[((23 + 4*Scales)&0xfffffff0)/4];
-
+#ifdef DVPROFILE
+    DVProfClear();
+#endif
+    
     Image pimage = NULL;
     float fscale = 1.0f;
     Image halfimage = NULL;
     Keypoint keypts = 0;
 
-    if( DoubleImSize ) {
-        pimage = SiftDoubleSize(porgimage);
-        fscale = 0.5f;
-    }
-    else
-        pimage = SiftCopyImage(porgimage);
+    {
+        DVSTARTPROFILE();
+
+        PeakThresh = 0.04f/(float)Scales;
+        s_imgaus = new Image[((27 + 4*Scales)&0xfffffff0)/4];
+        s_imdiff = new Image[((23 + 4*Scales)&0xfffffff0)/4];
+
+        if( DoubleImSize ) {
+            pimage = SiftDoubleSize(porgimage);
+            fscale = 0.5f;
+        }
+        else
+            pimage = SiftCopyImage(porgimage);
     
-    float fnewscale = 1.0f;
-    if( !DoubleImSize )
-        fnewscale = 0.5f;
+        float fnewscale = 1.0f;
+        if( !DoubleImSize )
+            fnewscale = 0.5f;
     
-    if( InitSigma > fnewscale ) {
-        GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+        if( InitSigma > fnewscale ) {
+            GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+        }
+
+        // create the images
+        s_imgaus[0] = pimage;
+        for(int i = 1; i < Scales+3; ++i)
+            s_imgaus[i] = CreateImage(pimage->rows,pimage->cols);
+        for(int i = 0; i < Scales+2; ++i)
+            s_imdiff[i] = CreateImage(pimage->rows,pimage->cols);
+        s_imgrad = CreateImage(pimage->rows,pimage->cols);
+        s_imorient = CreateImage(pimage->rows,pimage->cols);
+        s_MaxMinArray = (char*)sift_aligned_malloc(pimage->rows*pimage->cols,16);
+
+        while( pimage->rows > 12 && pimage->cols > 12 ) {
+            keypts = OctaveKeypoints(pimage, &halfimage, fscale, keypts);
+            pimage = HalfImageSize(halfimage);
+            fscale += fscale;
+        }
+
+        delete[] s_imgaus;
+        delete[] s_imdiff;
+        sift_aligned_free(s_MaxMinArray);
+
     }
-
-    // create the images
-    s_imgaus[0] = pimage;
-    for(int i = 1; i < Scales+3; ++i)
-        s_imgaus[i] = CreateImage(pimage->rows,pimage->cols);
-    for(int i = 0; i < Scales+2; ++i)
-        s_imdiff[i] = CreateImage(pimage->rows,pimage->cols);
-    s_imgrad = CreateImage(pimage->rows,pimage->cols);
-    s_imorient = CreateImage(pimage->rows,pimage->cols);
-    s_MaxMinArray = (char*)sift_aligned_malloc(pimage->rows*pimage->cols,16);
-
-    while( pimage->rows > 12 && pimage->cols > 12 ) {
-        keypts = OctaveKeypoints(pimage, &halfimage, fscale, keypts);
-        pimage = HalfImageSize(halfimage);
-        fscale += fscale;
-    }
-
-    delete[] s_imgaus;
-    delete[] s_imdiff;
-    sift_aligned_free(s_MaxMinArray);
 
 #ifdef DVPROFILE
     DVProfWrite("prof.txt");
