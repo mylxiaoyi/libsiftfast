@@ -17,9 +17,32 @@ cmake_minimum_required (VERSION 2.4.7)
 project (libsiftfast)
 set( CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE )
 
+include(CheckCXXSourceRuns)
+
 if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g")
   add_definitions(" -Wall -fPIC ")
+
+  # check for x86-64 system
+  check_cxx_source_runs("
+  int main()
+  {
+    int a = 0;
+    int*pa = &a;
+    asm(\".intel_syntax\\\\n\"
+	\"mov %%rax, %0\\\\n\"
+    \"mov %%eax, [%%rax]\\\\n\"
+    \".att_syntax\\\\n\"
+    : : \"r\"(pa) : \"%rax\");
+    return 0;
+  }"
+  IS_X86_64)
+
+  if( IS_X86_64 )
+    add_definitions("-D__x86_64__")
+  endif()
+else()
+  set(IS_X86_64 0)
 endif()
 
 include(CheckIncludeFile)
@@ -192,7 +215,11 @@ if(USE_MATLAB)
   if( DARWIN OR APPLE )
     set(MEXEXT "mexmac")
   elseif( UNIX )
-    set(MEXEXT "mexglx")
+    if( IS_X86_64 )
+      set(MEXEXT "mexa64")
+    else()
+      set(MEXEXT "mexglx")
+    endif()
   elseif( WIN64 )
     set(MEXEXT "mexw64")
   elseif( WIN32 OR CYGWIN OR WINDOWS )
