@@ -175,6 +175,19 @@ else()
 endif()
 
 if(MATLAB)
+  # check if the mex file is actually matlab (can be confused with latex)
+  EXEC_PROGRAM(${MATLAB} ARGS "-version" OUTPUT_VARIABLE MEX_TEST_OUT RETURN_VALUE MEX_TEST_RETURN)
+  #message(STATUS "mex result: ${MEX_TEST_OUT}")
+  string(REGEX MATCH "MATLAB" IS_MATLAB "${MEX_TEST_OUT}")
+
+  if( IS_MATLAB )
+    set(USE_MATLAB 1)
+  else()
+    set(USE_MATLAB)
+  endif()
+endif()
+
+if(USE_MATLAB)
 
   if( DARWIN OR APPLE )
     set(MEXEXT "mexmac")
@@ -206,7 +219,7 @@ if(MATLAB)
   install(FILES ${MATLAB_MEX_OUT}/${MATLAB_MEX} siftfast.m DESTINATION share/siftfast/matlab)
 else()
 message(STATUS "MATLAB installation not found")
-endif(MATLAB)
+endif(USE_MATLAB)
 
 set(OCTAVE OCTAVE-NOTFOUND)
 FIND_PROGRAM(OCTAVE NAME "mkoctfile" PATHS)
