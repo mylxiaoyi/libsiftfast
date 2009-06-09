@@ -246,10 +246,11 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
 {
     Image image = CreateImage(rows,cols);
     float* pixels = image->pixels;
-    
+    int stride = image->stride;
+
 #ifdef __SSE2__
-    for(int i = 0; i < (rows&~1); i += 2, pixels+=2*image->stride) {
-        for(int j = 0; j < cols; j += 4) {
+    for(int i = 0; i < (rows&~1); i += 2, pixels+=2*stride) {
+        for(int j = 0; j < (cols&~3); j += 4) {
             double* pf = &pdata[i+j*rows];
 #ifdef ALIGNED_IMAGE_ROWS
             __m128d m0 = _mm_load_pd(pf);
@@ -267,7 +268,12 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
             __m128 mrows1 = _mm_shuffle_ps(_mm_cvtpd_ps(m2),_mm_cvtpd_ps(m3),0x44);
 
             _mm_storeu_ps(pixels+j,_mm_shuffle_ps(mrows0,mrows1,0x88));
-            _mm_storeu_ps(pixels+j+image->stride,_mm_shuffle_ps(mrows0,mrows1,0xdd));
+            _mm_storeu_ps(pixels+j+stride,_mm_shuffle_ps(mrows0,mrows1,0xdd));
+        }
+
+        for(int j = (cols&~3); j < cols; j++) {
+            pixels[j] = pdata[i+j*rows];
+            pixels[j+stride] = pdata[i+j*rows+1];
         }
     }
 
@@ -276,7 +282,7 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols)
             pixels[j] = (float)pdata[rows-1+j*rows];
     }
 #else
-    for(int i = 0; i < rows; ++i, pixels+=image->stride) {
+    for(int i = 0; i < rows; ++i, pixels+=stride) {
         for(int j = 0; j < cols; ++j)
             pixels[j] = (float)pdata[i+j*rows];
     }
