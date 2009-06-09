@@ -179,17 +179,17 @@ else()
   FIND_PROGRAM(MATLAB NAME "mex" PATHS )
 endif()
 
+set(MEX_LIBS)
 if( CMAKE_COMPILER_IS_GNUC OR CMAKE_COMPILER_IS_GNUCXX )
   if( WIN32 )
     set(MEX_CXXFLAGS "${OPENMP_LFLAGS} ")
   else()
     # check for lapack
     check_library_exists(lapack _init "" HAS_LAPACK_LIB)
-    set(MEX_LIBS)
     if( HAS_LAPACK_LIB )
       set(MEX_LIBS "-llapack")
     endif()
-    set(MEX_CXXFLAGS "${OPENMP_LFLAGS} ${MEX_LIBS} -Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
+    set(MEX_CXXFLAGS "${OPENMP_LFLAGS} -Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib")
   endif()
 elseif(MSVC)
   set(MEX_CXXFLAGS "-L\"${libsiftfast_BINARY_DIR}/Release\" -L\"${libsiftfast_BINARY_DIR}/Debug\"")
@@ -239,7 +239,7 @@ if(USE_MATLAB)
   add_custom_command(
     OUTPUT ${MATLAB_MEX_OUT}/${MATLAB_MEX}
     COMMAND mex
-    ARGS -I\"${CMAKE_SOURCE_DIR}\" -L\"${libsiftfast_BINARY_DIR}\" ${MEX_CXXFLAGS} -lsiftfast -outdir \"${MATLAB_MEX_OUT}\" -output \"${MATLAB_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
+    ARGS -I\"${CMAKE_SOURCE_DIR}\" -L\"${libsiftfast_BINARY_DIR}\" ${MEX_LIBS} ${MEX_CXXFLAGS} -lsiftfast -outdir \"${MATLAB_MEX_OUT}\" -output \"${MATLAB_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast libsiftfast-static
   )
   add_custom_target(siftfast_matlab ALL DEPENDS ${MATLAB_MEX_OUT}/${MATLAB_MEX})
@@ -263,7 +263,7 @@ if(OCTAVE)
   add_custom_command(
     OUTPUT ${OCTAVE_MEX}
     COMMAND mkoctfile
-    ARGS --mex -I${CMAKE_SOURCE_DIR} -L\"${libsiftfast_BINARY_DIR}\" ${MEX_CXXFLAGS} -lsiftfast -o \"${OCTAVE_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
+    ARGS --mex -I${CMAKE_SOURCE_DIR} -L\"${libsiftfast_BINARY_DIR}\" ${MEX_LIBS} ${MEX_CXXFLAGS} -lsiftfast -o \"${OCTAVE_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast libsiftfast-static
   )
 
