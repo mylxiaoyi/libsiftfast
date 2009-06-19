@@ -16,6 +16,11 @@
 cmake_minimum_required (VERSION 2.4.7)
 project (libsiftfast)
 set( CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE )
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
+
+# Add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 include(CheckCXXSourceRuns)
 
@@ -115,6 +120,10 @@ elseif(MSVC)
   endif()
 endif()
 
+set(Boost_ADDITIONAL_VERSIONS "1.38" "1.37.0" "1.37" "1.35.0" "1.34.1" "1.34.0" "1.34" "1.33.1" "1.33.0" "1.33" ${Boost_ADDITIONAL_VERSIONS})
+find_package(Boost COMPONENTS python)
+message(STATUS "found boost version: ${Boost_VERSION}")
+
 add_library(libsiftfast SHARED libsiftfast.cpp)
 add_library(libsiftfast-static STATIC libsiftfast.cpp)
 
@@ -133,10 +142,36 @@ message(STATUS "installing to ${CMAKE_INSTALL_PREFIX}")
 
 # compile without depending on libsiftfast
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(siftfast libsiftfast.cpp siftfast.cpp)# profiler.cpp)
 #set_target_properties(siftfast PROPERTIES COMPILE_FLAGS "-DDVPROFILE")
 #target_link_libraries(siftfast libsiftfast)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+#
+# generate python bindings via boost-python
+#
+set(BUILD_SIFTFASTPY)
+if( Boost_PYTHON_FOUND )
+  include(FindPythonLibs)
+
+  if( PYTHONLIBS_FOUND OR PYTHON_LIBRARIES )
+    message(STATUS "python and boost-python found")
+    include_directories(${PYTHON_INCLUDE_PATH} ${Boost_INCLUDE_DIRS})
+    link_directories(${Boost_LIBRARY_DIRS})
+    add_library(siftfastpy SHARED siftfastpy.cpp libsiftfast.cpp)
+    set_target_properties(siftfastpy PROPERTIES PREFIX "")
+    target_link_libraries(siftfastpy ${PYTHON_LIBRARIES} ${Boost_PYTHON_LIBRARY})
+    set(BUILD_SIFTFASTPY 1)
+    install(TARGETS siftfastpy DESTINATION lib PERMISSIONS
+                OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                GROUP_READ GROUP_EXECUTE
+                WORLD_READ WORLD_EXECUTE)
+  else()
+    message(STATUS "failed to find python-dev please install it")
+  endif()
+else()
+  message(STATUS "failed to find boost-python, please install it")
+endif()
 
 # check for OpenMP
 if( NOT DEFINED USE_OPENMP OR USE_OPENMP  )
@@ -163,6 +198,9 @@ if( NOT DEFINED USE_OPENMP OR USE_OPENMP  )
       target_link_libraries(siftfast gomp)
       target_link_libraries(libsiftfast gomp)
       target_link_libraries(libsiftfast-static gomp)
+      if( BUILD_SIFTFASTPY )
+        target_link_libraries(siftfastpy gomp)
+      endif()
       set(OPENMP_LFLAGS "-lgomp")
     endif()
   endif()
@@ -248,11 +286,8 @@ else()
 message(STATUS "MATLAB installation not found")
 endif(USE_MATLAB)
 
-set(OCTAVE OCTAVE-NOTFOUND)
-FIND_PROGRAM(OCTAVE NAME "mkoctfile" PATHS)
-
-if(OCTAVE)
-
+include(${CMAKE_SOURCE_DIR}/FindOctave.cmake)
+if(OCTAVE_FOUND)
   if( MSVC )
     # need _mex since mkoctfile generates a siftfast.lib which messes with windows stuff
     set(OCTAVE_MEX ${CMAKE_CURRENT_BINARY_DIR}/octave/siftfast_mex.mex)
@@ -262,7 +297,7 @@ if(OCTAVE)
 
   add_custom_command(
     OUTPUT ${OCTAVE_MEX}
-    COMMAND mkoctfile
+    COMMAND ${MKOCTFILE_EXECUTABLE}
     ARGS --mex -I${CMAKE_SOURCE_DIR} -L\"${libsiftfast_BINARY_DIR}\" ${MEX_LIBS} ${MEX_CXXFLAGS} -lsiftfast -o \"${OCTAVE_MEX}\" \"${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp\"
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/siftmex.cpp libsiftfast libsiftfast-static
   )
@@ -290,6 +325,10 @@ install(TARGETS libsiftfast DESTINATION lib PERMISSIONS
                 OWNER_READ OWNER_WRITE OWNER_EXECUTE
                 GROUP_READ GROUP_EXECUTE
                 WORLD_READ WORLD_EXECUTE)
+
+file(GLOB jpg_files ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.jpg)
+install(FILES ${jpg_files} DESTINATION share/siftfast/examples)
+install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/examples/testsiftfast.py DESTINATION share/siftfast/examples)
 
 # add make uninstall capability
 CONFIGURE_FILE(
