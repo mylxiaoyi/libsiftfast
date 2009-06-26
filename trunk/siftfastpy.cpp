@@ -182,7 +182,7 @@ object PyGetKeypoints(PyImage& im)
         key = key->next;
     }
 
-    int dims[2] = {numkeys,4};
+    npy_intp dims[2] = {numkeys,4};
     PyObject *pyframes = PyArray_SimpleNew(2,dims, PyArray_FLOAT);
     float* pframes = (float*)PyArray_DATA(pyframes);
     
