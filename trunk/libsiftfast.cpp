@@ -1760,8 +1760,8 @@ inline vec_float4 __attribute__((__always_inline__))
       VEC_XOR(x, sign);
       
       /* range reduction */
-      a1 = VEC_GT (x , CF4_2414213562373095 );
-      a2 = VEC_GT (x , CF4_04142135623730950 );
+      a1 = (vec_int4)VEC_GT (x , CF4_2414213562373095 );
+      a2 = (vec_int4)VEC_GT (x , CF4_04142135623730950 );
       a3 = ~a2; 
       a2 ^= a1;
 
@@ -1799,8 +1799,8 @@ inline vec_float4  __attribute__((__always_inline__))
       vec_float4 y_negativ_2 = CF4_2;
       VEC_AND(y_negativ_2, VEC_GT( CF4_0, y ));
 
-      vec_int4 i_x_zero  = VEC_EQ ( CF4_0, x );
-      vec_int4 i_y_zero  = VEC_EQ ( CF4_0, y );
+      vec_int4 i_x_zero  = (vec_int4)VEC_EQ ( CF4_0, x );
+      vec_int4 i_y_zero  = (vec_int4)VEC_EQ ( CF4_0, y );
       vec_float4 x_zero_PIO2 = CF4_PIO2F;
       VEC_AND(x_zero_PIO2, i_x_zero);
       vec_float4 y_zero    = CF4_1;
