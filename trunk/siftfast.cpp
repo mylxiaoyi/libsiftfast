@@ -27,6 +27,7 @@
 #endif
 
 #include <cstdlib>
+#include <cstdio>
 #include <assert.h>
 
 using namespace std;
