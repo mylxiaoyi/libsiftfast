@@ -749,7 +749,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
 
     DVSTARTPROFILE();
 
-    int convsize = max(100000,32*(image->rows + ksize));
+    int convsize = max(100000,32*(image->rows + ksize+4));
 
     if( s_listconvbuf.size() == 0 || s_convbufsize < convsize ) {
         for(LISTBUF::iterator it = s_listconvbuf.begin(); it != s_listconvbuf.end(); ++it)
@@ -761,7 +761,6 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
         s_listconvbuf.push_back((float*)sift_aligned_malloc(convsize,16));
         s_convbufsize = convsize;
     }
-
 
 #ifdef _OPENMP
     for(int i = s_listconvbuf.size(); i < omp_get_max_threads(); ++i) {
@@ -784,7 +783,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
         
 #ifdef _OPENMP
         float* pconvbuf;
-        
+
         // need to get a free buffer
         #pragma omp critical
         {
@@ -838,15 +837,18 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
             _mm_store_ps(buf,mprev);
             buf += 8;
         }
+        // have to pad rest with zeros
+        memset(buf,0,convsize-((char*)buf-(char*)pconvbuf));
 
         //// finally convolve
         buf = pconvbuf;
+
         for(int i = 0; i < rows; ++i, buf += 8) {
             __m128 maccum = _mm_load_ps(buf+4);
             if( ksize > 3 ) {
-                for(int j = 3; j < ksize; j += 4) {
-                    float* psrc = buf + 8*j;
-                    __m128 mkerall = _mm_load_ps(kernel+j);
+                for(int k = 3; k < ksize; k += 4) {
+                    float* psrc = buf + 8*k;
+                    __m128 mkerall = _mm_load_ps(kernel+k);
                     __m128 mnew0 = _mm_load_ps(psrc);
                     mker0 = _mm_shuffle_ps(mkerall,mkerall,0);
                     __m128 mnew1 = _mm_load_ps(psrc + 8);
@@ -893,14 +895,14 @@ Keypoint FindMaxMin(Image* imdiff, Image* imgaus, float fscale, Keypoint keypts)
     memset(s_MaxMinArray,0,rows*cols);
 
     for( int index = 1; index < Scales+1; ++index) {
-        
+
 #if !defined(_MSC_VER) && defined(__SSE__)
         GradOriImagesFast(imgaus[index],s_imgrad,s_imorient);
 #else
         GradOriImages(imgaus[index],s_imgrad,s_imorient);
 #endif
         assert( imdiff[index]->stride == stride );
-        float* _diffpixels = imdiff[index]->pixels;
+        float* _diffpixels = imdiff[index]->pixels;        
         
 //        for(int i = 0; i < rows; ++i) {
 //            for(int j = 0; j < cols; ++j) {
@@ -917,7 +919,7 @@ Keypoint FindMaxMin(Image* imdiff, Image* imgaus, float fscale, Keypoint keypts)
 ////                }
 //            }
 //        }
-        
+
         #pragma omp parallel for schedule(dynamic,8)
         for( int rowstart = 5; rowstart < rows-5; ++rowstart ) {
             Keypoint newkeypts = NULL;
