@@ -1,4 +1,4 @@
-version=1.0
+version=1.2
 rm -rf libsiftfast-$version libsiftfast-$version-src
 make prefix=`pwd`/libsiftfast-$version
 make install
