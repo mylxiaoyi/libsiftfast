@@ -315,9 +315,9 @@ if(OCTAVE_FOUND)
 
   install(FILES ${OCTAVE_MEX} siftfast.m DESTINATION share/siftfast/octave)
 
-else()
+else(OCTAVE_FOUND)
 message(STATUS "Octave installation not found")
-endif(OCTAVE)
+endif(OCTAVE_FOUND)
 
 install(FILES siftfast.h DESTINATION include/siftfast)
 install(TARGETS siftfast DESTINATION bin)
