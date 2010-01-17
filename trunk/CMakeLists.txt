@@ -238,6 +238,9 @@ if( Boost_PYTHON_FOUND )
       target_link_libraries(siftfastpy ${STDC_LIBRARY} ${PYTHON_LIBRARIES} ${Boost_PYTHON_LIBRARY})
 
       set_target_properties(siftfastpy PROPERTIES PREFIX "")
+      if( WIN32 )
+        set_target_properties(siftfastpy PROPERTIES SUFFIX ".pyd")
+      endif()
       set(BUILD_SIFTFASTPY 1)
       install(TARGETS siftfastpy DESTINATION lib PERMISSIONS
         OWNER_READ OWNER_WRITE OWNER_EXECUTE
