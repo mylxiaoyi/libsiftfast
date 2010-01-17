@@ -162,7 +162,12 @@ if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
 endif()
 
 set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1)
-set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1)
+if( MSVC )
+  set(LIBSIFTFAST_NAME libsiftfast-s)
+else()
+  set(LIBSIFTFAST_NAME siftfast)
+endif()
+set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME ${LIBSIFTFAST_NAME} CLEAN_DIRECT_OUTPUT 1)
 
 #if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 #  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "libsiftfast install prefix" FORCE )
@@ -406,10 +411,14 @@ endif(OCTAVE_FOUND)
 
 install(FILES siftfast.h DESTINATION include/siftfast)
 install(TARGETS siftfast DESTINATION bin)
-install(TARGETS libsiftfast DESTINATION lib PERMISSIONS
-                OWNER_READ OWNER_WRITE OWNER_EXECUTE
-                GROUP_READ GROUP_EXECUTE
-                WORLD_READ WORLD_EXECUTE)
+if( MSVC )
+  install(TARGETS libsiftfast RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION lib)
+else()
+  install(TARGETS libsiftfast DESTINATION lib PERMISSIONS
+                  OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                  GROUP_READ GROUP_EXECUTE
+                  WORLD_READ WORLD_EXECUTE)
+endif()
 
 file(GLOB jpg_files ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.jpg)
 install(FILES ${jpg_files} DESTINATION share/siftfast/examples)
