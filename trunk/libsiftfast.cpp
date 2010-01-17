@@ -326,6 +326,18 @@ Keypoint GetKeypoints(Image porgimage)
     
         if( InitSigma > fnewscale ) {
             GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+//            {
+//                FILE* f = fopen("test.txt","w");
+//                int rows = pimage->rows, cols = pimage->cols, stride = pimage->stride;
+//                float *_pdst = pimage->pixels;
+//                for(int j = 0; j < rows; ++j, _pdst += stride ) {
+//                    for(int k = 0; k < cols; ++k) {
+//                        fprintf(f,"%f ",_pdst[k]);
+//                    }
+//                    fprintf(f,"\n");
+//                }
+//                fclose(f);
+//            }
         }
 
         // create the images
