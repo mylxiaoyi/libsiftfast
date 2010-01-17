@@ -13,6 +13,8 @@
 //
 //You should have received a copy of the GNU Lesser General Public License
 //along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#define BOOST_ENABLE_ASSERT_HANDLER
+
 #include <vector>
 #include <boost/shared_ptr.hpp>
 
@@ -21,6 +23,8 @@
 #include <boost/python/exception_translator.hpp>
 #include <pyconfig.h>
 #include <numpy/arrayobject.h>
+
+#include <boost/format.hpp>
 
 #include "siftfast.h"
 
@@ -44,6 +48,16 @@ struct siftfast_exception : std::exception
     char const* what() const throw() { return _s.c_str(); }
     string _s;
 };
+
+#if defined(BOOST_ENABLE_ASSERT_HANDLER)
+namespace boost
+{
+inline void assertion_failed(char const * expr, char const * function, char const * file, long line)
+{
+    throw siftfast_exception(str(boost::format("[%s:%d] -> %s, expr: %s")%file%line%function%expr));
+}
+}
+#endif
 
 void translate_siftfast_exception(siftfast_exception const& e)
 {
@@ -90,18 +104,19 @@ class PyImage
 public:
     PyImage(int width, int height) : width(width), height(height)
     {
-        if( width <= 0 || height <= 0 )
-            throw siftfast_exception("bad image dimensions");
+        BOOST_ASSERT(width>0&&height>0);
         stride = (width+3)&~3;
-        vimage.resize(width*stride);
+        vimage.resize(height*stride);
     }
-    PyImage(int width, int height, int stride, object arr) : width(width), height(height), stride(stride)
+    PyImage(object oimage)
     {
-        if( width <= 0 || height <= 0 )
-            throw siftfast_exception("bad image dimensions");
-        vimage = ExtractFloatArray(arr);
-        if( (int)vimage.size() != stride*height )
-            throw siftfast_exception("data array not correct size");
+        object shape = oimage.attr("shape");
+        BOOST_ASSERT(len(shape)==2);
+        width = extract<int>(shape[1]);
+        height = extract<int>(shape[0]);
+        stride = (width+3)&~3;
+        vimage.resize(height*stride);
+        SetData(oimage);
     }
 
     void SetData(object arr)
@@ -142,14 +157,6 @@ public:
         }
 
         throw siftfast_exception("array not in correct format");
-//        printf("heree!\n");
-//        object arrnew = ((numeric::array)oraw).astype("f8");
-//        extract<double> arrnew(arr[0]);
-//        if( xr.check() ) {
-//            for(int i = 0; i < height; ++i)
-//                for(int j = 0; j < width; ++j)
-//                    vimage[i*stride+j] = extract<double>(arrnew[i][j]);
-//        }
     }
 
     int width,height,stride;
@@ -212,31 +219,120 @@ object PyGetKeypoints(PyImage& im)
     return make_tuple(static_cast<numeric::array>(handle<>(pyframes)),static_cast<numeric::array>(handle<>(pydesc)));
 }
 
+object PyGetKeypoints(numeric::array oarray)
+{
+    PyImage pimage(oarray);
+    return PyGetKeypoints(pimage);
+}
+
 struct DummyStruct {};
+
+struct int_from_int
+{
+    int_from_int()
+    {
+        converter::registry::push_back(&convertible, &construct, type_id<int>());
+    }
+
+    static void* convertible( PyObject* obj)
+    {
+        PyObject* newobj = PyNumber_Int(obj);
+        if (!PyString_Check(obj) && newobj) {
+            Py_DECREF(newobj);
+            return obj;
+        }
+        else {
+            if (newobj) {
+                Py_DECREF(newobj);
+            }
+            PyErr_Clear();
+            return 0;
+        }
+    }
+
+    static void construct(PyObject* _obj, converter::rvalue_from_python_stage1_data* data)
+    {
+        PyObject* newobj = PyNumber_Int(_obj);
+        int* storage = (int*)((converter::rvalue_from_python_storage<int>*)data)->storage.bytes;
+        *storage = extract<int>(newobj);
+        Py_DECREF(newobj);
+        data->convertible = storage;
+    }
+};
+
+template<typename T>
+struct T_from_number
+{
+    T_from_number()
+    {
+        converter::registry::push_back(&convertible, &construct, type_id<T>());
+    }
+
+    static void* convertible( PyObject* obj)
+    {
+        PyObject* newobj = PyNumber_Float(obj);
+        if (!PyString_Check(obj) && newobj) {
+            Py_DECREF(newobj);
+            return obj;
+        }
+        else {
+            if (newobj) {
+                Py_DECREF(newobj);
+            }
+            PyErr_Clear();
+            return 0;
+        }
+    }
+
+    static void construct(PyObject* _obj, converter::rvalue_from_python_stage1_data* data)
+    {
+        PyObject* newobj = PyNumber_Float(_obj);
+        T* storage = (T*)((converter::rvalue_from_python_storage<T>*)data)->storage.bytes;
+        *storage = extract<T>(newobj);
+        Py_DECREF(newobj);
+        data->convertible = storage;
+    }
+};
+
+int GetDoubleImSize() { return DoubleImSize; }
+void SetDoubleImSize(int i) { DoubleImSize = i; }
+int GetScales() { return Scales; }
+void SetScales(int i) { Scales = i; }
+float GetInitSigma() { return InitSigma; }
+void SetInitSigma(float f) { InitSigma = f; }
+float GetPeakThresh() { return PeakThresh; }
+void SetPeakThresh(float f) { PeakThresh = f; }
 
 BOOST_PYTHON_MODULE(siftfastpy)
 {
     import_array();
     numeric::array::set_module_and_type("numpy", "ndarray");
     register_exception_translator<siftfast_exception>(&translate_siftfast_exception);
+    int_from_int();
+    T_from_number<float>();
+    T_from_number<double>();
 
     def("DestroyAllResources",DestroyAllResources);
-    def("GetKeypoints",PyGetKeypoints);
+    object (*pkeypoints1)(PyImage&) = PyGetKeypoints;
+    object (*pkeypoints2)(numeric::array) = PyGetKeypoints;
+    def("GetKeypoints",pkeypoints1,args("image"));
+    def("GetKeypoints",pkeypoints2,args("array"));
 
     class_<PyImage>("Image", no_init)
         .def(init<int,int>())
-        .def(init<int,int,int,object>())
+        .def(init<object>())
         .def_readonly("width",&PyImage::width)
         .def_readonly("height",&PyImage::height)
-        .def("SetData",&PyImage::SetData)
+        .def("SetData",&PyImage::SetData,args("array"))
         .def_pickle(Image_pickle_suite())
         ;
 
     {
         scope options = class_<DummyStruct>("options")
-            .def_readwrite("DoubleImSize",&DoubleImSize)
-            .def_readwrite("Scales",&Scales)
-            .def_readwrite("InitSigma",&InitSigma)
-            .def_readwrite("PeakThresh",&PeakThresh);
+            .add_property("DoubleImSize",GetDoubleImSize,SetDoubleImSize)
+            .add_property("Scales",GetScales,SetScales)
+            .add_property("InitSigma",GetInitSigma,SetInitSigma)
+            .add_property("PeakThresh",GetPeakThresh,SetPeakThresh)
+            ;
     }
 }

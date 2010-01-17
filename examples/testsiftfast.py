@@ -35,12 +35,12 @@ if __name__=='__main__':
     frames,desc = siftfastpy.GetKeypoints(siftimage)
     print '%d  keypoints found in %fs'%(frames.shape[0],time.time()-starttime)
 
-    print '%d %d'%(desc.shape[0],desc.shape[1])
-    for i in xrange(frames.shape[0]):
-        print '%d %d %f %f'%(frames[i,1],frames[i,0],frames[i,3],frames[i,2])
-        s = ''
-        for j,d in enumerate(desc[i]):
-            s += str(min(255,int(d*512.0))) + ' '
-            if mod(j,16) == 15:
-                s += '\n'
-        print s
+#     print '%d %d'%(desc.shape[0],desc.shape[1])
+#     for i in xrange(frames.shape[0]):
+#         print '%d %d %f %f'%(frames[i,1],frames[i,0],frames[i,3],frames[i,2])
+#         s = ''
+#         for j,d in enumerate(desc[i]):
+#             s += str(min(255,int(d*512.0))) + ' '
+#             if mod(j,16) == 15:
+#                 s += '\n'
+#         print s
