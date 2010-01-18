@@ -323,7 +323,7 @@ BOOST_PYTHON_MODULE(siftfastpy)
         .def(init<object>())
         .def_readonly("width",&PyImage::width)
         .def_readonly("height",&PyImage::height)
-        .def("SetData",&PyImage::SetData,args("array"))
+        .def("SetData",&PyImage::SetData,args("data"))
         .def_pickle(Image_pickle_suite())
         ;
 
