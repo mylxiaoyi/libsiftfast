@@ -1,6 +1,6 @@
 libsiftfast: author zerofrog(@gmail.com)
 ----------------------------------------
-Various utilities to compute the SIFT features of a greyscale image. Packages offered:
+Various utilities to compute the SIFT features of a greyscale image. Packages offered are:
 
 *libsiftfast.so - main library that contains the sift code
 
