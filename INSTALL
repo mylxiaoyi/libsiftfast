@@ -20,9 +20,7 @@ OpenMP:
 
 cmake will use OpenMP if it exists in your system. Note that OpenMP is available only on gcc versions >= 4.2. CMake checks this automatically, but you can force usage or disabling of it by adding "-DUSE_OPENMP=OFF" when manually running cmake. Use ON to force enabling.
 
-Sometimes siftfast might fail to compile with OpenMP because libgomp.so is not setup properly to be used by shared objects. Checkout this tutorial here on how to compile the correct libgomp:
-
-http://openrave.programmingvision.com/index.php?title=Misc:MatlabOpenMP
+Sometimes siftfast might fail to compile with OpenMP because libgomp.so is not setup properly to be used by shared objects. In this case, it is necessary to compile a version of libgomp.
 
 Basically the problem is that the default libgomp might be compiled with nodlopen flag refusing it to be dynamically loaded. The only way around this is to compile your own libgomp library and make sure libsiftfast is linking to it.
 
