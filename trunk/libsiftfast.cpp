@@ -91,17 +91,18 @@ typedef struct ImageSt {
                             // (used to add padding to make rows aligned to 16 bytes)
 } *Image;
 
-
-// Data structure for a keypoint.  Lists of keypoints are linked by the "next" field.
 typedef struct KeypointSt {
     float row, col;             // Subpixel location of keypoint.
     float scale, ori;           // Scale and orientation (range [-PI,PI])
     float descrip[128];     // Vector of descriptor values
     struct KeypointSt *next;    // Pointer to next keypoint in list.
+    // used for extracting descriptors, not part of the the keypoint's frame
+    int imageindex; /// index of image keypoint came from
+    float fpyramidscale; // scale of the pyramid
 } *Keypoint;
 
-
 int DoubleImSize = 1;
+int ComputeDescriptors=1;
 int Scales = 3;
 float InitSigma = 1.6f;
 float PeakThresh;
@@ -174,10 +175,13 @@ Image CreateImage(int rows, int cols);
 Image CreateImageFromMatlabData(double* pdata, int rows, int cols);
 void DestroyAllImages();
 Keypoint GetKeypoints(Image porgimage);
+Keypoint GetKeypointFrames(Image porgimage);
+void GetKeypointDescriptors(Image porgimage, Keypoint frames);
 Image SiftDoubleSize(Image p);
 Image SiftCopyImage(Image p);
 Image HalfImageSize(Image curimage);
 Keypoint OctaveKeypoints(Image pimage, Image* phalfimage, float fscale, Keypoint prevkeypts);
+void OctaveKeypointDescriptors(Image pimage, Image* phalfimage, float fscale, list<Keypoint>& listframes);
 void SubtractImage(Image imgdst, Image img0, Image img1);
 void GaussianBlur(Image imgdst, Image image, float fblur);
 void ConvHorizontal(Image imgdst, Image image, float* kernel, int ksize);
@@ -194,7 +198,7 @@ Keypoint InterpKeyPoint(Image* imdiff, int index, int rowstart, int colstart,
                         Image imgrad, Image imorient, char* pMaxMinArray, float fscale,Keypoint keypts, int steps);
 float FitQuadratic(float* X, Image* imdiff, int index, int rowstart, int colstart);
 void SolveLinearSystem(float* Y, float* H, int dim);
-Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,
+Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,int index,
                        float frowstart, float fcolstart, Keypoint keypts);
 float InterpPeak(float f0, float f1, float f2);
 void SmoothHistogram(float* phist, int numbins);
@@ -295,12 +299,12 @@ static Image* s_imgaus = NULL, *s_imdiff = NULL;
 static Image s_imgrad = NULL, s_imorient = NULL;
 static char* s_MaxMinArray = NULL;
 
-Keypoint GetKeypoints(Image porgimage)
+Keypoint GetKeypointsInternal(Image porgimage)
 {
 #ifdef DVPROFILE
     DVProfClear();
 #endif
-    
+
     Image pimage = NULL;
     float fscale = 1.0f;
     Image halfimage = NULL;
@@ -356,9 +360,11 @@ Keypoint GetKeypoints(Image porgimage)
             fscale += fscale;
         }
 
-        delete[] s_imgaus;
-        delete[] s_imdiff;
-        sift_aligned_free(s_MaxMinArray);
+        delete[] s_imgaus; s_imgaus = NULL;
+        delete[] s_imdiff; s_imdiff = NULL;
+        s_imgrad = NULL;
+        s_imorient = NULL;
+        sift_aligned_free(s_MaxMinArray); s_MaxMinArray = NULL;
 
     }
 
@@ -367,6 +373,81 @@ Keypoint GetKeypoints(Image porgimage)
 #endif
     
     return keypts;
+}
+
+Keypoint GetKeypoints(Image porgimage)
+{
+    ComputeDescriptors = 1;
+    return GetKeypointsInternal(porgimage);
+}
+
+Keypoint GetKeypointFrames(Image porgimage)
+{
+    ComputeDescriptors = 0;
+    return GetKeypointsInternal(porgimage);
+}
+
+void GetKeypointDescriptors(Image porgimage, Keypoint frames)
+{
+    Image pimage = NULL;
+    float fscale = 1.0f;
+    Image halfimage = NULL;
+
+    int maximageindex = 0;
+    vector< list<Keypoint> > vscalekeypoints(log2(porgimage->cols)+10);
+    Keypoint keypt = frames;
+    while(keypt!=NULL) {
+        if( maximageindex < keypt->imageindex )
+            maximageindex = keypt->imageindex;
+        vscalekeypoints.at((int)(1.5+log2(keypt->fpyramidscale))).push_back(keypt);
+        keypt = keypt->next;
+    }
+
+    vector< list<Keypoint> >::iterator itkeys = vscalekeypoints.begin();
+
+    // create the image pyramids
+    PeakThresh = 0.04f/(float)Scales;
+    s_imgaus = new Image[((27 + 4*Scales)&0xfffffff0)/4];
+    s_imdiff = new Image[((23 + 4*Scales)&0xfffffff0)/4];
+
+    if( itkeys->size() > 0 ) {
+        pimage = SiftDoubleSize(porgimage);
+        fscale = 0.5f;
+    }
+    else {
+        ++itkeys;
+        pimage = SiftCopyImage(porgimage);
+    }
+    
+    float fnewscale = 1.0f;
+    if( vscalekeypoints[0].size() == 0 )
+        fnewscale = 0.5f;
+
+    if( InitSigma > fnewscale ) {
+        GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+    }
+
+    // create the images
+    s_imgaus[0] = pimage;
+    for(int i = 1; i < Scales+3; ++i)
+        s_imgaus[i] = CreateImage(pimage->rows,pimage->cols);
+    for(int i = 0; i < Scales+2; ++i)
+        s_imdiff[i] = CreateImage(pimage->rows,pimage->cols);
+    s_imgrad = CreateImage(pimage->rows,pimage->cols);
+    s_imorient = CreateImage(pimage->rows,pimage->cols);
+
+    while( pimage->rows > 12 && pimage->cols > 12 ) {
+        OctaveKeypointDescriptors(pimage, &halfimage, fscale, *itkeys);
+        pimage = HalfImageSize(halfimage);
+        fscale += fscale;
+        ++itkeys;
+    }
+
+    delete[] s_imgaus; s_imgaus = NULL;
+    delete[] s_imdiff; s_imdiff = NULL;
+    s_imgrad = NULL;
+    s_imorient = NULL;
+    sift_aligned_free(s_MaxMinArray); s_MaxMinArray = NULL;
 }
 
 Image SiftDoubleSize(Image im)
@@ -443,6 +524,51 @@ Keypoint OctaveKeypoints(Image pimage, Image* phalfimage, float fscale, Keypoint
     
     *phalfimage = s_imgaus[Scales];
     return FindMaxMin(s_imdiff, s_imgaus, fscale, prevkeypts);
+}
+
+void OctaveKeypointDescriptors(Image pimage, Image* phalfimage, float fscale, list<Keypoint>& listframes)
+{
+    DVSTARTPROFILE();
+
+    float fwidth = powf(2.0f,1.0f / (float)Scales);
+    float fincsigma = sqrtf(fwidth * fwidth - 1.0f);
+
+    int rows = pimage->rows, cols = pimage->cols, stride = pimage->stride;
+
+    s_imgaus[0] = pimage;
+    float sigma = InitSigma;
+    for(int i = 1; i < Scales+3; ++i) {
+        s_imgaus[i]->rows = rows; s_imgaus[i]->cols = cols; s_imgaus[i]->stride = stride;
+        GaussianBlur(s_imgaus[i], s_imgaus[i-1], fincsigma * sigma);
+        sigma *= fwidth;
+    }
+
+    s_imgrad->rows = rows; s_imgrad->cols = cols; s_imgrad->stride = stride;
+    s_imorient->rows = rows; s_imorient->cols = cols; s_imorient->stride = stride;
+    
+    *phalfimage = s_imgaus[Scales];
+    float fiscale = 1.0f/fscale;
+
+    for( int index = 1; index < Scales+1; ++index) {
+        vector<Keypoint> vframes;
+        for(list<Keypoint>::iterator it = listframes.begin(); it != listframes.end(); ++it) {
+            if( index == (*it)->imageindex )
+                vframes.push_back(*it);
+        }
+
+#if !defined(_MSC_VER) && defined(__SSE__)
+        GradOriImagesFast(s_imgaus[index],s_imgrad,s_imorient);
+#else
+        GradOriImages(s_imgaus[index],s_imgrad,s_imorient);
+#endif
+        #pragma omp parallel for schedule(dynamic,8)
+        for(size_t ikey = 0; ikey < vframes.size(); ++ikey) {
+            float fSize = vframes[ikey]->scale*fiscale;
+            float frowstart = vframes[ikey]->row*fiscale;
+            float fcolstart = vframes[ikey]->col*fiscale;
+            MakeKeypointSample(vframes[ikey],s_imgrad,s_imorient,fSize,frowstart,fcolstart);
+        }
+    }
 }
 
 // imgdst = img0 - img1
@@ -1208,7 +1334,7 @@ Keypoint InterpKeyPoint(Image* imdiff, int index, int rowstart, int colstart,
         
         if( bgetkeypts ) {
             float fSize = InitSigma * powf(2.0f,((float)index + X[0])/(float)Scales);
-            return AssignOriHist(imgrad,imorient,fscale,fSize,(float)rowstart+X[1],(float)colstart+X[2],keypts);
+            return AssignOriHist(imgrad,imorient,fscale,fSize,index,(float)rowstart+X[1],(float)colstart+X[2],keypts);
         }
     }
 
@@ -1284,7 +1410,7 @@ void SolveLinearSystem(float* Y, float* H, int dim)
     }
 }
 
-Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,
+Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,int imageindex,
                        float frowstart, float fcolstart, Keypoint keypts)
 {
     int rowstart = (int)(frowstart+0.5f);
@@ -1387,6 +1513,7 @@ Keypoint AssignOriHist(Image imgrad, Image imorient, float fscale, float fSize,
         assert( forient >= -PI && forient <= PI ); // error, bad orientation
 
         keypts = MakeKeypoint(imgrad,imorient,fscale,fSize,frowstart,fcolstart,forient,keypts);
+        keypts->imageindex = imageindex;
     }
     
     return keypts;
@@ -1436,7 +1563,9 @@ Keypoint MakeKeypoint(Image imgrad, Image imorient, float fscale, float fSize,
     pnewkeypt->row = fscale*frowstart;
     pnewkeypt->col = fscale*fcolstart;
     pnewkeypt->scale = fscale*fSize;
-    MakeKeypointSample(pnewkeypt,imgrad,imorient,fSize,frowstart,fcolstart);
+    pnewkeypt->fpyramidscale = fscale;
+    if( ComputeDescriptors )
+        MakeKeypointSample(pnewkeypt,imgrad,imorient,fSize,frowstart,fcolstart);
     
     return pnewkeypt;
 }
