@@ -40,6 +40,27 @@ extern int Scales;
 extern float InitSigma;
 extern float PeakThresh;
 
+// aligned malloc and free
+inline void* py_aligned_malloc(size_t size, size_t align)
+{
+    assert( align < 0x10000 );
+	char* p = (char*)malloc(size+align);
+	int off = 2+align - ((int)(size_t)(p+2) % align);
+
+	p += off;
+	*(unsigned short*)(p-2) = off;
+
+	return p;
+}
+
+void py_aligned_free(void* pmem)
+{
+    if( pmem != NULL ) {
+        char* p = (char*)pmem;
+        free(p - (int)*(unsigned short*)(p-2));
+    }
+}
+
 struct siftfast_exception : std::exception
 {
     siftfast_exception() : std::exception(), _s("unknown exception") {}
@@ -172,16 +193,8 @@ public:
     }
 };
 
-object PyGetKeypoints(PyImage& im)
+object ReturnKeypoints(Keypoint keypts)
 {
-    struct ImageSt siftimage;
-    siftimage.rows = im.height;
-    siftimage.cols = im.width;
-    siftimage.pixels = &im.vimage[0];
-    siftimage.stride = im.stride;
-    
-    Keypoint keypts = GetKeypoints(&siftimage);
-
     int numkeys = 0;
     Keypoint key = keypts;
     while(key) {
@@ -213,16 +226,113 @@ object PyGetKeypoints(PyImage& im)
         ++index;
     }
 
+    return make_tuple(static_cast<numeric::array>(handle<>(pyframes)),static_cast<numeric::array>(handle<>(pydesc)));
+}
+
+object PyGetKeypoints(PyImage& im)
+{
+    struct ImageSt siftimage;
+    siftimage.rows = im.height;
+    siftimage.cols = im.width;
+    siftimage.pixels = &im.vimage[0];
+    siftimage.stride = im.stride;
+    
+    Keypoint keypts = GetKeypoints(&siftimage);
+    object o = ReturnKeypoints(keypts);
+    FreeKeypoints(keypts);
+    DestroyAllImages();
+    return o;
+}
+
+object PyGetKeypointFrames(PyImage& im)
+{
+    struct ImageSt siftimage;
+    siftimage.rows = im.height;
+    siftimage.cols = im.width;
+    siftimage.pixels = &im.vimage[0];
+    siftimage.stride = im.stride;
+    
+    Keypoint keypts = GetKeypointFrames(&siftimage);
+
+    int numkeys = 0;
+    Keypoint key = keypts;
+    while(key) {
+        numkeys++;
+        key = key->next;
+    }
+
+    npy_intp dims[2] = {numkeys,6};
+    PyObject *pyframes = PyArray_SimpleNew(2,dims, PyArray_FLOAT);
+    float* pframes = (float*)PyArray_DATA(pyframes);
+        int index = 0;
+    key = keypts;
+    while(key) {
+        pframes[6*index+0] = key->col;
+        pframes[6*index+1] = key->row;
+        pframes[6*index+2] = key->ori;
+        pframes[6*index+3] = key->scale;
+        pframes[6*index+4] = key->imageindex;
+        pframes[6*index+5] = key->fpyramidscale;
+
+        key = key->next;
+        ++index;
+    }
+
     FreeKeypoints(keypts);
     DestroyAllImages();
 
-    return make_tuple(static_cast<numeric::array>(handle<>(pyframes)),static_cast<numeric::array>(handle<>(pydesc)));
+    return static_cast<numeric::array>(handle<>(pyframes));
+}
+
+object PyGetKeypointDescriptors(PyImage& im,object oframes)
+{
+    struct ImageSt siftimage;
+    siftimage.rows = im.height;
+    siftimage.cols = im.width;
+    siftimage.pixels = &im.vimage[0];
+    siftimage.stride = im.stride;
+
+    vector<Keypoint> vkeypoints(len(oframes));
+    for(size_t i = 0; i < vkeypoints.size(); ++i) {
+        object oframe = oframes[i];
+        Keypoint keypt = (Keypoint)py_aligned_malloc(sizeof(KeypointSt),16);
+        keypt->col = extract<float>(oframe[0]);
+        keypt->row = extract<float>(oframe[1]);
+        keypt->ori = extract<float>(oframe[2]);
+        keypt->scale = extract<float>(oframe[3]);
+        keypt->imageindex = extract<int>(oframe[4]);
+        keypt->fpyramidscale = extract<float>(oframe[5]);
+        vkeypoints[i] = keypt;
+        if( i > 0 )
+            keypt->next = vkeypoints[i-1];
+        else
+            keypt->next = NULL;
+    }
+
+    GetKeypointDescriptors(&siftimage,vkeypoints.back());
+    object o = ReturnKeypoints(vkeypoints.back());
+    for(size_t i = 0; i < vkeypoints.size(); ++i)
+        py_aligned_free(vkeypoints[i]);
+    DestroyAllImages();
+    return o;
 }
 
 object PyGetKeypoints(numeric::array oarray)
 {
     PyImage pimage(oarray);
     return PyGetKeypoints(pimage);
+}
+
+object PyGetKeypointFrames(numeric::array oarray)
+{
+    PyImage pimage(oarray);
+    return PyGetKeypointFrames(pimage);
+}
+
+object PyGetKeypointDescriptors(numeric::array oarray, object oframes)
+{
+    PyImage pimage(oarray);
+    return PyGetKeypointDescriptors(pimage, oframes);
 }
 
 struct DummyStruct {};
@@ -317,6 +427,14 @@ BOOST_PYTHON_MODULE(siftfastpy)
     object (*pkeypoints2)(numeric::array) = PyGetKeypoints;
     def("GetKeypoints",pkeypoints1,args("image"));
     def("GetKeypoints",pkeypoints2,args("array"));
+    object (*pkeypointsf1)(PyImage&) = PyGetKeypointFrames;
+    object (*pkeypointsf2)(numeric::array) = PyGetKeypointFrames;
+    def("GetKeypointFrames",pkeypointsf1,args("image"));
+    def("GetKeypointFrames",pkeypointsf2,args("array"));
+    object (*pkeypointsd1)(PyImage&,object) = PyGetKeypointDescriptors;
+    object (*pkeypointsd2)(numeric::array,object) = PyGetKeypointDescriptors;
+    def("GetKeypointDescriptors",pkeypointsd1,args("image","frames"));
+    def("GetKeypointDescriptors",pkeypointsd2,args("array","frames"));
 
     class_<PyImage>("Image", no_init)
         .def(init<int,int>())

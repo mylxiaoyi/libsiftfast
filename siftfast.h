@@ -27,6 +27,9 @@ typedef struct KeypointSt {
     float scale, ori;           // Scale and orientation (range [-PI,PI])
     float descrip[128];     // Vector of descriptor values
     struct KeypointSt *next;    // Pointer to next keypoint in list.
+    // used for extracting descriptors, not part of the the keypoint's frame
+    int imageindex; /// index of image keypoint came from
+    float fpyramidscale; // scale of the pyramid
 } *Keypoint;
 
 #ifdef __cplusplus
@@ -34,6 +37,8 @@ extern "C" {
 #endif
 
 Keypoint GetKeypoints(Image porgimage);
+Keypoint GetKeypointFrames(Image porgimage);
+void GetKeypointDescriptors(Image porgimage, Keypoint frames);
 Image CreateImage(int rows, int cols);
 Image CreateImageFromMatlabData(double* pdata, int rows, int cols);
 void DestroyAllImages();

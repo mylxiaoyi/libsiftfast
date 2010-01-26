@@ -30,10 +30,16 @@ if __name__=='__main__':
     im = im.convert(mode='L') # convert to greyscale
     siftimage = siftfastpy.Image(im.size[0],im.size[1])
     siftimage.SetData(reshape(im.getdata(),im.size[::-1]))
-    
-    starttime = time.time()
+
+    starttime = time.time()    
     frames,desc = siftfastpy.GetKeypoints(siftimage)
     print '%d  keypoints found in %fs'%(frames.shape[0],time.time()-starttime)
+
+    starttime = time.time()
+    framesonly = siftfastpy.GetKeypointFrames(siftimage)
+    print 'frames only: %d  keypoints found in %fs'%(framesonly.shape[0],time.time()-starttime)
+    frames,desc = siftfastpy.GetKeypointDescriptors(siftimage,framesonly)
+    print 'with descriptors: %d  keypoints found in %fs'%(frames.shape[0],time.time()-starttime)
 
 #     print '%d %d'%(desc.shape[0],desc.shape[1])
 #     for i in xrange(frames.shape[0]):
