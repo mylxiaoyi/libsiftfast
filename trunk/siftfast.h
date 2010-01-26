@@ -32,6 +32,14 @@ typedef struct KeypointSt {
     float fpyramidscale; // scale of the pyramid
 } *Keypoint;
 
+struct SiftParameters
+{
+    int DoubleImSize;
+    int Scales;
+    float InitSigma;
+    float PeakThresh; // default: 0.04/Scales
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -44,7 +52,8 @@ Image CreateImageFromMatlabData(double* pdata, int rows, int cols);
 void DestroyAllImages();
 void DestroyAllResources();
 void FreeKeypoints(Keypoint keypt);
-
+void SetSiftParameters(SiftParameters params);
+SiftParameters GetSiftParameters();
 #ifdef __cplusplus
 }
 #endif

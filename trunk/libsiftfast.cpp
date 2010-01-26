@@ -57,6 +57,8 @@
 #endif
 #endif
 
+#include "siftfast.h"
+
 using namespace std;
 
 #define PI 3.141592654f
@@ -84,28 +86,12 @@ using namespace std;
 #define DVSTARTPROFILE()
 #endif
 
-typedef struct ImageSt {
-    int rows, cols;          // Dimensions of image.
-    float *pixels;          // 2D array of image pixels.
-    int stride;             // how many floats until the next row
-                            // (used to add padding to make rows aligned to 16 bytes)
-} *Image;
 
-typedef struct KeypointSt {
-    float row, col;             // Subpixel location of keypoint.
-    float scale, ori;           // Scale and orientation (range [-PI,PI])
-    float descrip[128];     // Vector of descriptor values
-    struct KeypointSt *next;    // Pointer to next keypoint in list.
-    // used for extracting descriptors, not part of the the keypoint's frame
-    int imageindex; /// index of image keypoint came from
-    float fpyramidscale; // scale of the pyramid
-} *Keypoint;
+static SiftParameters s_params = {1,3,1.6f,0.04f/3.0f};
+void SetSiftParameters(SiftParameters params) { s_params = params; }
+SiftParameters GetSiftParameters() { return s_params; }
 
-int DoubleImSize = 1;
-int ComputeDescriptors=1;
-int Scales = 3;
-float InitSigma = 1.6f;
-float PeakThresh;
+int g_nComputeDescriptors=1;
 
 static list<Keypoint> s_listKeypoints;
 
@@ -313,11 +299,10 @@ Keypoint GetKeypointsInternal(Image porgimage)
     {
         DVSTARTPROFILE();
 
-        PeakThresh = 0.04f/(float)Scales;
-        s_imgaus = new Image[((27 + 4*Scales)&0xfffffff0)/4];
-        s_imdiff = new Image[((23 + 4*Scales)&0xfffffff0)/4];
+        s_imgaus = new Image[((27 + 4*s_params.Scales)&0xfffffff0)/4];
+        s_imdiff = new Image[((23 + 4*s_params.Scales)&0xfffffff0)/4];
 
-        if( DoubleImSize ) {
+        if( s_params.DoubleImSize ) {
             pimage = SiftDoubleSize(porgimage);
             fscale = 0.5f;
         }
@@ -325,11 +310,11 @@ Keypoint GetKeypointsInternal(Image porgimage)
             pimage = SiftCopyImage(porgimage);
     
         float fnewscale = 1.0f;
-        if( !DoubleImSize )
+        if( !s_params.DoubleImSize )
             fnewscale = 0.5f;
     
-        if( InitSigma > fnewscale ) {
-            GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+        if( s_params.InitSigma > fnewscale ) {
+            GaussianBlur(pimage, pimage, sqrtf(s_params.InitSigma*s_params.InitSigma - fnewscale*fnewscale));
 //            {
 //                FILE* f = fopen("test.txt","w");
 //                int rows = pimage->rows, cols = pimage->cols, stride = pimage->stride;
@@ -346,9 +331,9 @@ Keypoint GetKeypointsInternal(Image porgimage)
 
         // create the images
         s_imgaus[0] = pimage;
-        for(int i = 1; i < Scales+3; ++i)
+        for(int i = 1; i < s_params.Scales+3; ++i)
             s_imgaus[i] = CreateImage(pimage->rows,pimage->cols);
-        for(int i = 0; i < Scales+2; ++i)
+        for(int i = 0; i < s_params.Scales+2; ++i)
             s_imdiff[i] = CreateImage(pimage->rows,pimage->cols);
         s_imgrad = CreateImage(pimage->rows,pimage->cols);
         s_imorient = CreateImage(pimage->rows,pimage->cols);
@@ -377,13 +362,13 @@ Keypoint GetKeypointsInternal(Image porgimage)
 
 Keypoint GetKeypoints(Image porgimage)
 {
-    ComputeDescriptors = 1;
+    g_nComputeDescriptors = 1;
     return GetKeypointsInternal(porgimage);
 }
 
 Keypoint GetKeypointFrames(Image porgimage)
 {
-    ComputeDescriptors = 0;
+    g_nComputeDescriptors = 0;
     return GetKeypointsInternal(porgimage);
 }
 
@@ -406,9 +391,8 @@ void GetKeypointDescriptors(Image porgimage, Keypoint frames)
     vector< list<Keypoint> >::iterator itkeys = vscalekeypoints.begin();
 
     // create the image pyramids
-    PeakThresh = 0.04f/(float)Scales;
-    s_imgaus = new Image[((27 + 4*Scales)&0xfffffff0)/4];
-    s_imdiff = new Image[((23 + 4*Scales)&0xfffffff0)/4];
+    s_imgaus = new Image[((27 + 4*s_params.Scales)&0xfffffff0)/4];
+    s_imdiff = new Image[((23 + 4*s_params.Scales)&0xfffffff0)/4];
 
     if( itkeys->size() > 0 ) {
         pimage = SiftDoubleSize(porgimage);
@@ -423,15 +407,15 @@ void GetKeypointDescriptors(Image porgimage, Keypoint frames)
     if( vscalekeypoints[0].size() == 0 )
         fnewscale = 0.5f;
 
-    if( InitSigma > fnewscale ) {
-        GaussianBlur(pimage, pimage, sqrtf(InitSigma*InitSigma - fnewscale*fnewscale));
+    if( s_params.InitSigma > fnewscale ) {
+        GaussianBlur(pimage, pimage, sqrtf(s_params.InitSigma*s_params.InitSigma - fnewscale*fnewscale));
     }
 
     // create the images
     s_imgaus[0] = pimage;
-    for(int i = 1; i < Scales+3; ++i)
+    for(int i = 1; i < s_params.Scales+3; ++i)
         s_imgaus[i] = CreateImage(pimage->rows,pimage->cols);
-    for(int i = 0; i < Scales+2; ++i)
+    for(int i = 0; i < s_params.Scales+2; ++i)
         s_imdiff[i] = CreateImage(pimage->rows,pimage->cols);
     s_imgrad = CreateImage(pimage->rows,pimage->cols);
     s_imorient = CreateImage(pimage->rows,pimage->cols);
@@ -501,14 +485,14 @@ Keypoint OctaveKeypoints(Image pimage, Image* phalfimage, float fscale, Keypoint
 {
     DVSTARTPROFILE();
 
-    float fwidth = powf(2.0f,1.0f / (float)Scales);
+    float fwidth = powf(2.0f,1.0f / (float)s_params.Scales);
     float fincsigma = sqrtf(fwidth * fwidth - 1.0f);
 
     int rows = pimage->rows, cols = pimage->cols, stride = pimage->stride;
 
     s_imgaus[0] = pimage;
-    float sigma = InitSigma;
-    for(int i = 1; i < Scales+3; ++i) {
+    float sigma = s_params.InitSigma;
+    for(int i = 1; i < s_params.Scales+3; ++i) {
 
         s_imgaus[i]->rows = rows; s_imgaus[i]->cols = cols; s_imgaus[i]->stride = stride;
         GaussianBlur(s_imgaus[i], s_imgaus[i-1], fincsigma * sigma);
@@ -522,7 +506,7 @@ Keypoint OctaveKeypoints(Image pimage, Image* phalfimage, float fscale, Keypoint
     s_imgrad->rows = rows; s_imgrad->cols = cols; s_imgrad->stride = stride;
     s_imorient->rows = rows; s_imorient->cols = cols; s_imorient->stride = stride;
     
-    *phalfimage = s_imgaus[Scales];
+    *phalfimage = s_imgaus[s_params.Scales];
     return FindMaxMin(s_imdiff, s_imgaus, fscale, prevkeypts);
 }
 
@@ -530,14 +514,14 @@ void OctaveKeypointDescriptors(Image pimage, Image* phalfimage, float fscale, li
 {
     DVSTARTPROFILE();
 
-    float fwidth = powf(2.0f,1.0f / (float)Scales);
+    float fwidth = powf(2.0f,1.0f / (float)s_params.Scales);
     float fincsigma = sqrtf(fwidth * fwidth - 1.0f);
 
     int rows = pimage->rows, cols = pimage->cols, stride = pimage->stride;
 
     s_imgaus[0] = pimage;
-    float sigma = InitSigma;
-    for(int i = 1; i < Scales+3; ++i) {
+    float sigma = s_params.InitSigma;
+    for(int i = 1; i < s_params.Scales+3; ++i) {
         s_imgaus[i]->rows = rows; s_imgaus[i]->cols = cols; s_imgaus[i]->stride = stride;
         GaussianBlur(s_imgaus[i], s_imgaus[i-1], fincsigma * sigma);
         sigma *= fwidth;
@@ -546,10 +530,10 @@ void OctaveKeypointDescriptors(Image pimage, Image* phalfimage, float fscale, li
     s_imgrad->rows = rows; s_imgrad->cols = cols; s_imgrad->stride = stride;
     s_imorient->rows = rows; s_imorient->cols = cols; s_imorient->stride = stride;
     
-    *phalfimage = s_imgaus[Scales];
+    *phalfimage = s_imgaus[s_params.Scales];
     float fiscale = 1.0f/fscale;
 
-    for( int index = 1; index < Scales+1; ++index) {
+    for( int index = 1; index < s_params.Scales+1; ++index) {
         vector<Keypoint> vframes;
         for(list<Keypoint>::iterator it = listframes.begin(); it != listframes.end(); ++it) {
             if( index == (*it)->imageindex )
@@ -1032,7 +1016,7 @@ Keypoint FindMaxMin(Image* imdiff, Image* imgaus, float fscale, Keypoint keypts)
     int rows = imdiff[0]->rows, cols = imdiff[0]->cols, stride = imdiff[0]->stride;
     memset(s_MaxMinArray,0,rows*cols);
 
-    for( int index = 1; index < Scales+1; ++index) {
+    for( int index = 1; index < s_params.Scales+1; ++index) {
 
 #if !defined(_MSC_VER) && defined(__SSE__)
         GradOriImagesFast(imgaus[index],s_imgrad,s_imorient);
@@ -1065,7 +1049,7 @@ Keypoint FindMaxMin(Image* imdiff, Image* imgaus, float fscale, Keypoint keypts)
             for( int colstart = 5; colstart < cols-5; ++colstart ) {
                    
                 float fval = diffpixels[colstart];
-                if( fabsf(fval) > PeakThresh*0.8f ) {
+                if( fabsf(fval) > s_params.PeakThresh*0.8f ) {
                     if( LocalMaxMin(fval, imdiff[index],rowstart,colstart) &&
                         LocalMaxMin(fval, imdiff[index-1],rowstart,colstart) &&
                         LocalMaxMin(fval, imdiff[index+1],rowstart,colstart) &&
@@ -1320,7 +1304,7 @@ Keypoint InterpKeyPoint(Image* imdiff, int index, int rowstart, int colstart,
     if( steps > 0 && (newrow != rowstart || newcol != colstart) )
         return InterpKeyPoint(imdiff,index,newrow,newcol,imgrad,imorient,pMaxMinArray,fscale,keypts,steps-1);
 
-    if(fabsf(X[0]) <= 1.5f && fabsf(X[1]) <= 1.5f && fabsf(X[2]) <= 1.5f && fabsf(fquadvalue) >= PeakThresh ) {
+    if(fabsf(X[0]) <= 1.5f && fabsf(X[1]) <= 1.5f && fabsf(X[2]) <= 1.5f && fabsf(fquadvalue) >= s_params.PeakThresh ) {
         
         char* pmaxmin = pMaxMinArray + rowstart*imgrad->cols+colstart;
         bool bgetkeypts = false;
@@ -1333,7 +1317,7 @@ Keypoint InterpKeyPoint(Image* imdiff, int index, int rowstart, int colstart,
         }
         
         if( bgetkeypts ) {
-            float fSize = InitSigma * powf(2.0f,((float)index + X[0])/(float)Scales);
+            float fSize = s_params.InitSigma * powf(2.0f,((float)index + X[0])/(float)s_params.Scales);
             return AssignOriHist(imgrad,imorient,fscale,fSize,index,(float)rowstart+X[1],(float)colstart+X[2],keypts);
         }
     }
@@ -1564,7 +1548,7 @@ Keypoint MakeKeypoint(Image imgrad, Image imorient, float fscale, float fSize,
     pnewkeypt->col = fscale*fcolstart;
     pnewkeypt->scale = fscale*fSize;
     pnewkeypt->fpyramidscale = fscale;
-    if( ComputeDescriptors )
+    if( g_nComputeDescriptors )
         MakeKeypointSample(pnewkeypt,imgrad,imorient,fSize,frowstart,fcolstart);
     
     return pnewkeypt;
