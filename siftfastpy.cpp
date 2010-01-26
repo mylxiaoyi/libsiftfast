@@ -35,11 +35,6 @@
 using namespace boost::python;
 using namespace std;
 
-extern int DoubleImSize;
-extern int Scales;
-extern float InitSigma;
-extern float PeakThresh;
-
 // aligned malloc and free
 inline void* py_aligned_malloc(size_t size, size_t align)
 {
@@ -404,15 +399,6 @@ struct T_from_number
     }
 };
 
-int GetDoubleImSize() { return DoubleImSize; }
-void SetDoubleImSize(int i) { DoubleImSize = i; }
-int GetScales() { return Scales; }
-void SetScales(int i) { Scales = i; }
-float GetInitSigma() { return InitSigma; }
-void SetInitSigma(float f) { InitSigma = f; }
-float GetPeakThresh() { return PeakThresh; }
-void SetPeakThresh(float f) { PeakThresh = f; }
-
 BOOST_PYTHON_MODULE(siftfastpy)
 {
     import_array();
@@ -444,13 +430,13 @@ BOOST_PYTHON_MODULE(siftfastpy)
         .def("SetData",&PyImage::SetData,args("data"))
         .def_pickle(Image_pickle_suite())
         ;
+    def("SetSiftParameters",SetSiftParameters);
+    def("GetSiftParameters",GetSiftParameters);
 
-    {
-        scope options = class_<DummyStruct>("options")
-            .add_property("DoubleImSize",GetDoubleImSize,SetDoubleImSize)
-            .add_property("Scales",GetScales,SetScales)
-            .add_property("InitSigma",GetInitSigma,SetInitSigma)
-            .add_property("PeakThresh",GetPeakThresh,SetPeakThresh)
-            ;
-    }
+    class_<SiftParameters>("SiftParameters")
+        .def_readwrite("DoubleImSize",&SiftParameters::DoubleImSize)
+        .def_readwrite("Scales",&SiftParameters::Scales)
+        .def_readwrite("InitSigma",&SiftParameters::InitSigma)
+        .def_readwrite("PeakThresh",&SiftParameters::PeakThresh)
+        ;
 }

@@ -38,8 +38,13 @@ if __name__=='__main__':
     starttime = time.time()
     framesonly = siftfastpy.GetKeypointFrames(siftimage)
     print 'frames only: %d  keypoints found in %fs'%(framesonly.shape[0],time.time()-starttime)
-    frames,desc = siftfastpy.GetKeypointDescriptors(siftimage,framesonly)
-    print 'with descriptors: %d  keypoints found in %fs'%(frames.shape[0],time.time()-starttime)
+    frames2,desc2 = siftfastpy.GetKeypointDescriptors(siftimage,framesonly)
+    print 'with descriptors: %d  keypoints found in %fs'%(frames2.shape[0],time.time()-starttime)
+
+    # test
+#     from scipy import spatial
+#     print 'pos error: ', mean(numpy.min(spatial.distance_matrix(framesonly[:,0:4],frames),0))
+#     print 'desc error: ', mean(numpy.min(spatial.distance_matrix(desc2,desc),0))
 
 #     print '%d %d'%(desc.shape[0],desc.shape[1])
 #     for i in xrange(frames.shape[0]):
