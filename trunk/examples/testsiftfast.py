@@ -48,7 +48,7 @@ if __name__=='__main__':
     siftfastpy.SetSiftParameters(params)
     starttime = time.time()    
     framesonly = siftfastpy.GetKeypointFrames(siftimage)
-    print 'No Image Doubling: %d  keypoint frames found in %fs'%(frames.shape[0],time.time()-starttime)
+    print 'No Image Doubling: %d  keypoint frames found in %fs'%(framesonly.shape[0],time.time()-starttime)
 
     # test
 #     from scipy import spatial
