@@ -18,6 +18,13 @@ project (libsiftfast)
 set( CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE )
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
 
+# Define here the needed parameters
+set (SIFTFAST_VERSION_MAJOR 1)
+set (SIFTFAST_VERSION_MINOR 3)
+set (SIFTFAST_VERSION_PATCH 0)
+set (SIFTFAST_VERSION ${SIFTFAST_VERSION_MAJOR}.${SIFTFAST_VERSION_MINOR}.${SIFTFAST_VERSION_PATCH})
+set (SIFTFAST_SOVERSION ${SIFTFAST_VERSION_MAJOR})
+
 # Differences between CMake 2.4 and 2.6
 if("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" GREATER 2.4)
    message(STATUS "Using cmake version ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" )
@@ -34,6 +41,8 @@ endif()
 # Add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/siftfast.h.in ${CMAKE_CURRENT_SOURCE_DIR}/siftfast.h)
 
 include(CheckCXXSourceRuns)
 
@@ -161,13 +170,13 @@ if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX )
   target_link_libraries(libsiftfast m stdc++)
 endif()
 
-set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1)
+set_target_properties(libsiftfast PROPERTIES OUTPUT_NAME  siftfast CLEAN_DIRECT_OUTPUT 1 SOVERSION ${SIFTFAST_SOVERSION} VERSION ${SIFTFAST_VERSION})
 if( MSVC )
   set(LIBSIFTFAST_NAME libsiftfast-s)
 else()
   set(LIBSIFTFAST_NAME siftfast)
 endif()
-set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME ${LIBSIFTFAST_NAME} CLEAN_DIRECT_OUTPUT 1)
+set_target_properties(libsiftfast-static PROPERTIES OUTPUT_NAME ${LIBSIFTFAST_NAME} CLEAN_DIRECT_OUTPUT 1 SOVERSION ${SIFTFAST_SOVERSION} VERSION ${SIFTFAST_VERSION})
 
 #if(UNIX AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 #  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "libsiftfast install prefix" FORCE )
