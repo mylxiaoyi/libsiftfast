@@ -132,12 +132,14 @@ inline u64 GetMicroTime()
 // aligned malloc and free
 inline void* sift_aligned_malloc(size_t size, size_t align)
 {
-    assert( align < 0x10000 );
+    assert( align <= 0xffffffff );
 	char* p = (char*)malloc(size+align);
-	int off = 2+align - ((int)(size_t)(p+2) % align);
+    if( p == NULL )
+        return NULL;
+	int off = 4+align - ((int)(size_t)(p+4) % align);
 
 	p += off;
-	*(u16*)(p-2) = off;
+	*(unsigned int*)(p-4) = off;
 
 	return p;
 }
@@ -146,7 +148,7 @@ void sift_aligned_free(void* pmem)
 {
     if( pmem != NULL ) {
         char* p = (char*)pmem;
-        free(p - (int)*(u16*)(p-2));
+        free(p - (int)*(unsigned int*)(p-4));
     }
 }
 
