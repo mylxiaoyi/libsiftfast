@@ -40,8 +40,10 @@ inline void* py_aligned_malloc(size_t size, size_t align)
 {
     assert( align <= 0xffffffff );
 	char* p = (char*)malloc(size+align);
-    if( p == NULL )
+    if( p == NULL ) {
+        fprintf(stderr,"py_aligned_malloc out of memory allocating %d bytes\n",(int)(size+align));
         return NULL;
+    }
 	int off = 4+align - ((int)(size_t)(p+4) % align);
 
 	p += off;
