@@ -64,6 +64,15 @@ using namespace std;
 #define PI 3.141592654f
 #define SQRT2 1.4142136f
 
+#if defined(_MSC_VER)
+// Calculates log2 of number.  
+double log2( double n )  
+{  
+    // log(n)/log(2) is log2.  
+    return log( n ) / log( 2.0 );  
+}
+#endif
+
 // if defined, will profile the critical functions and write results to prof.txt
 //#define DVPROFILE 
 
@@ -548,7 +557,7 @@ void OctaveKeypointDescriptors(Image pimage, Image* phalfimage, float fscale, li
         GradOriImages(s_imgaus[index],s_imgrad,s_imorient);
 #endif
         #pragma omp parallel for schedule(dynamic,8)
-        for(size_t ikey = 0; ikey < vframes.size(); ++ikey) {
+        for(int ikey = 0; ikey < (int)vframes.size(); ++ikey) {
             float fSize = vframes[ikey]->scale*fiscale;
             float frowstart = vframes[ikey]->row*fiscale;
             float fcolstart = vframes[ikey]->col*fiscale;
