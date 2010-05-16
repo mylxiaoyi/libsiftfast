@@ -605,7 +605,6 @@ void GaussianBlur(Image imgdst, Image image, float fblur)
 
     const float GaussTruncate = 4.0f;
     
-
     int ksize = (int)(2.0f * GaussTruncate * fblur + 1.0f);
     if( ksize < 3 )
         ksize = 3;
@@ -663,6 +662,8 @@ void ConvHorizontal(Image imgdst, Image image, float* kernel, int ksize)
     _buf.resize(image->cols + ksize);
     float* buf = &_buf[0];
     int rows = image->rows, cols = image->cols, stride = image->stride;
+    if( rows <= 0 || cols <= 0 )
+        return;
     int width = (ksize >= 0 ? ksize : ksize-1)>>1;
     float* pixels = image->pixels;
     float* pdst = imgdst->pixels;
@@ -688,9 +689,10 @@ void ConvVertical(Image image, float* kernel, int ksize)
     _buf.resize(image->rows + ksize);
     float* buf = &_buf[0];
     int rows = image->rows, cols = image->cols, stride = image->stride;
+    if( rows <= 0 || cols <= 0 )
+        return;
     int width = (ksize >= 0 ? ksize : ksize-1)>>1;
     float* pixels = image->pixels;
-
     for(int j = 0; j < cols; ++j, pixels += 1) {
         for(int i = 0; i < width; ++i)
             buf[i] = pixels[0];
