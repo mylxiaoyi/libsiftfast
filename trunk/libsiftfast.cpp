@@ -645,7 +645,10 @@ void GaussianBlur(Image imgdst, Image image, float fblur)
     else
         ConvHorizontalFast(imgdst, image,kernel,ksize);
 
-    ConvVerticalFast(imgdst,kernel,ksize);
+    if( image->rows < 3 )
+        ConvVertical(imgdst,kernel,ksize);
+    else
+        ConvVerticalFast(imgdst,kernel,ksize);
 #else
     ConvHorizontal(imgdst, image,kernel,ksize);
     ConvVertical(imgdst,kernel,ksize);
@@ -960,7 +963,7 @@ void ConvVerticalFast(Image image, float* kernel, int ksize)
         }
         
         _mm_store_ps(buf,mpprev); buf += 8;
-        for(int i = rows-width+2; i < rows; ++i) {
+        for(int i = max(1,rows-width+2); i < rows; ++i) {
             __m128 mnew = _mm_loadu_ps(pixels+i*stride);
             _mm_store_ps(buf,mprev);
             mprev = mnew;
