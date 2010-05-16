@@ -194,6 +194,8 @@ public:
 
 object ReturnKeypoints(Keypoint keypts)
 {
+    if( keypts == NULL )
+        return make_tuple(numeric::array(boost::python::list()).astype("f4"),numeric::array(boost::python::list()).astype("f4"));
     int numkeys = 0;
     Keypoint key = keypts;
     while(key) {
@@ -308,10 +310,15 @@ object PyGetKeypointDescriptors(PyImage& im,object oframes)
             keypt->next = NULL;
     }
 
-    GetKeypointDescriptors(&siftimage,vkeypoints.back());
-    object o = ReturnKeypoints(vkeypoints.back());
-    for(size_t i = 0; i < vkeypoints.size(); ++i)
-        py_aligned_free(vkeypoints[i]);
+    object o;
+    if( vkeypoints.size() > 0 ) {
+        GetKeypointDescriptors(&siftimage,vkeypoints.back());
+        o = ReturnKeypoints(vkeypoints.back());
+        for(size_t i = 0; i < vkeypoints.size(); ++i)
+            py_aligned_free(vkeypoints[i]);
+    }
+    else
+        o = ReturnKeypoints(NULL);
     DestroyAllImages();
     return o;
 }
