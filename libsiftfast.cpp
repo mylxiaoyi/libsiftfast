@@ -722,7 +722,7 @@ void ConvBuffer(float* buf, float* kernel, int bufsize, int ksize)
 typedef vector<float*> LISTBUF;
 static LISTBUF  s_listconvbuf; //TODO, make 16 byte aligned
 static int s_convbufsize = 0; // the size of all the buffers in s_listconvbuf
-static int SIFT_ALIGNED16(s_convmask[4]) = {0xffffffff,0xffffffff,0xffffffff,0};
+static int SIFT_ALIGNED16(s_convmask[4]) = {static_cast<int>(0xffffffff),static_cast<int>(0xffffffff),static_cast<int>(0xffffffff),0};
 
 struct myaccum { float SIFT_ALIGNED16(faccum[2][4]); };
 
@@ -1837,7 +1837,7 @@ void DestroyAllResources()
 #if !defined(_MSC_VER) && defined(__SSE__) && !defined(SIMDMATH_H) // copied from libsimdmath
 
 #define DEF_CONST(a,b) static  const vec_float4 a = {b,b,b,b};
-#define DEI_CONST(a,b) static  const vec_int4   a = {b,b,b,b};
+#define DEI_CONST(a,b) static  const vec_int4   a = {static_cast<int>(b),static_cast<int>(b),static_cast<int>(b),static_cast<int>(b)};
 
 
 DEF_CONST(CF4_2414213562373095, 2.414213562373095f) 
