@@ -155,7 +155,8 @@ endif()
 if( NOT $ENV{BOOST_LIBRARYDIR} STREQUAL "" )
   set(Boost_LIBRARY_DIRS $ENV{BOOST_LIBRARYDIR})
 endif()
-find_package(Boost COMPONENTS python)
+find_package(Boost REQUIRED COMPONENTS system python39)
+add_definitions("-Wno-narrowing")
 
 if( Boost_FOUND )
   message(STATUS "found boost version: ${Boost_VERSION}")
@@ -194,7 +195,7 @@ add_executable(siftfast libsiftfast.cpp siftfast.cpp)# profiler.cpp)
 # generate python bindings via boost-python
 #
 set(BUILD_SIFTFASTPY)
-if( Boost_PYTHON_FOUND )
+if( Boost_PYTHON38_FOUND )
   find_package(PythonLibs)
 
   if( PYTHONLIBS_FOUND OR PYTHON_LIBRARIES )
@@ -210,7 +211,7 @@ if( Boost_PYTHON_FOUND )
     if( PYTHON_EXECUTABLE )
       # get the site-packages directory
       execute_process(
-        COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()"
+        COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
         OUTPUT_VARIABLE _python_sitepackage
         RESULT_VARIABLE _python_failed)
       if( ${_python_failed} EQUAL 0 )
